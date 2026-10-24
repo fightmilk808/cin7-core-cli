@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cin7-core-cli"
+version = "0.1.0"
+description = "Read-only-by-default command line for the Cin7 Core (DEAR Inventory) public API v2"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "pytest-cov>=4"]
+
+[project.scripts]
+cin7 = "cin7_cli.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+cin7_cli = ["spec.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
