@@ -41,11 +41,14 @@ class Request:
     method: str
     url: str
     body: object = None
+    form: dict | None = None  # application/x-www-form-urlencoded fields (print actions)
 
     def describe(self) -> str:
         """Human-readable request line plus body, for --dry-run and write confirmation."""
         text = f"{self.method} {self.url}"
-        if self.body is not None:
+        if self.form is not None:
+            text += "\n" + urllib.parse.urlencode(self.form)
+        elif self.body is not None:
             text += "\n" + json.dumps(self.body, indent=2)
         return text
 
@@ -86,7 +89,10 @@ class Client:
         Returns parsed JSON, or the response bytes with their Content-Type when
         `raw` (file downloads).
         """
-        data = json.dumps(req.body).encode() if req.body is not None else None
+        if req.form is not None:
+            data = urllib.parse.urlencode(req.form).encode()
+        else:
+            data = json.dumps(req.body).encode() if req.body is not None else None
         attempt = 0
         while True:
             self.limiter.wait()
@@ -98,7 +104,9 @@ class Client:
                 http_req.add_header(k, v)
             http_req.add_header("Accept", "application/json")
             if data is not None:
-                http_req.add_header("Content-Type", "application/json")
+                http_req.add_header(
+                    "Content-Type", "application/x-www-form-urlencoded" if req.form is not None else "application/json"
+                )
             try:
                 with self._opener.open(http_req, timeout=self.timeout) as resp:
                     if raw:

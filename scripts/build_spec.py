@@ -272,6 +272,34 @@ def build_other(rebuild: Path) -> list[dict]:
     return out
 
 
+def build_prints(rebuild: Path) -> list[dict]:
+    """Every print action in the web app, with the Cin7 pages it lives on (they are often buried)."""
+    labels = {r["route"]: r["menu_label"] for r in csv.DictReader((rebuild / "data" / "pages.csv").open())}
+    out = []
+    for r in csv.DictReader((rebuild / "data" / "endpoints.csv").open()):
+        url = r["url"]
+        if r["kind"] != "mvc" or not re.search(r"/Print\w*$", url):
+            continue
+        params = r["params"].split()
+        id_param = next((p for p in ("IDList", "orderIDs", "PrintEntityID") if p in params), None)
+        out.append(
+            {
+                "path": url,
+                "method": "GET" if r["methods"].startswith("GET") else "POST",
+                "methods_raw": r["methods"],
+                "params": params,
+                "effect": r["effect"],
+                "pages": r["pages"].split(),
+                "labels": [labels.get(p, "") for p in r["pages"].split()],
+                "id_param": id_param,
+                "template_param": next((p for p in ("TemplateID", "PrintTemplateID") if p in params), None),
+                # Sendable only where the map names an id parameter and calls it a read.
+                "sendable": bool(id_param) and r["effect"].startswith("read"),
+            }
+        )
+    return out
+
+
 def build(rebuild: Path) -> dict:
     shapes = json.loads((rebuild / "data" / "public-api-shapes.json").read_text())
     rows = list(csv.DictReader((rebuild / "data" / "public-api.csv").open()))
@@ -346,6 +374,7 @@ def build(rebuild: Path) -> dict:
         "source": "fightmilk808/cin7-core-rebuild data/ (public-api-shapes.json, public-api.csv, endpoints.csv, "
         "wms-api.csv, mes-api.csv, report-service-endpoints.csv)",
         "web_base_url": WEB_BASE,
+        "prints": build_prints(rebuild),
         "base_url": "https://inventory.dearsystems.com/ExternalApi/v2",
         "commands": commands,
         "webhooks": shapes.get("webhooks", {}),

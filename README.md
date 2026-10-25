@@ -54,6 +54,11 @@ A [Textual](https://textual.textualize.io) terminal UI over the same spec, clien
 | **Copy** | `y` cell · `Y` row as JSON · `i` the record's id · `u` link. |
 | **Summary tab** | Count rows by any column (Status, Customer, Supplier, …) with Σ totals for numeric columns, over the rows the search leaves. |
 | **Record / JSON tabs** | Collapsible trees coloured by type; nested lines (sale lines, BOM components) open on demand. Enter on a table row opens it in Record. |
+| **Quick views** | `1` open production orders (completed hidden, soonest due first) · `2` sales waiting on stock · `3` latest MRP run (internal) · `4` sales awaiting shipment. Each fills the form, runs it and sorts it. Status values come from the Blueprint's lists; check them against your data. |
+| **Pinned · Recent** | `p` pins the selected operation. Pinned and recently run operations sit at the top of the sidebar. |
+| **Saved filters** | `ctrl+s` saves the form under a name ("this week's sales"); `ctrl+o` loads it (Enter) or deletes it (Delete). |
+| **History** | `<` `>` step back and forward through earlier results; `k` freezes the current table in a right-hand pane to compare with the next one. |
+| **Print** | `Space` marks rows, `ctrl+a` marks all, `P` prints them: see [Printing](#printing). |
 | **Downloads tab** | Every export and `⬇` download with time and path, kept across sessions; Enter opens the file. |
 
 Record links come from the route names in the rebuild map's `pages.csv`; open one to check it before relying on it.
@@ -62,6 +67,35 @@ Record links come from the route names in the rebuild map's `pages.csv`; open on
 
 **Still read-only, full stop.** Write operations can be listed (`m`) so their request shapes can be read, but there is
 no way to send one from the TUI.
+
+## Printing
+
+Printing is often buried in Cin7 (a Print menu on a list, a button on a dashboard, a dropdown inside a run). The
+map lists every print action and the screens it is on:
+
+```bash
+cin7 print where              # all 19: endpoint, one or many ids, template?, the Cin7 screens that carry it
+cin7 print where production   # filter
+cin7 print templates --type Sale
+```
+
+In the TUI the **🖨 PRINT** sidebar section shows the same list. To bulk print from a list view: open Sales,
+Purchases, Products, Customers or Production orders, mark rows with `Space` (`ctrl+a` for all), press `P`, pick a
+template, then type `print <n>` to confirm. The PDF is saved and listed on the Downloads tab. From the CLI:
+
+```bash
+cin7 print send /SaleList/Print --ids <id>,<id> --template <template-id> --dry-run
+cin7 print send /SaleList/Print --ids <id>,<id> --template <template-id> --allow-print
+```
+
+Printing returns a document and changes no record, but the map marks it "may log an audit line": Cin7 might note that
+you printed it. So it runs only as your signed-in browser session, only after `--allow-print` (CLI) or the typed
+confirmation (TUI), and never as part of a plain read. Request formats (form-encoded, comma-separated ids) are
+inferred from the map and **not yet verified live**: use `--dry-run`, then print one document first.
+
+Not mapped, so not sendable: the production **run** "Print pick list" button, `/ProductionOrder/Print`, the RMA
+prints and `/Purchase/PrintReceiveTo` (the map lists no id parameter for them). The production orders **list**
+print (`/ProductionOrdersList/Print`, `orderIDs`) is mapped.
 
 ## Internal endpoints (the web app's own API)
 

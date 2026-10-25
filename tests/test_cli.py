@@ -475,3 +475,51 @@ def test_file_download_saved(web, tmp_path, capsys):
 def test_cookie_ref_stored_as_reference_only(capsys):
     code, _, err = run(capsys, "auth", "setup", "--cookie-ref", "ASPXAUTH=rawsecretvalue")
     assert code == 3 and "op:// reference" in err
+
+
+# --- print ----------------------------------------------------------------------------------
+
+
+def test_print_where_lists_every_endpoint_and_screens(capsys):
+    from cin7_cli import printing
+
+    code, out, _ = run(capsys, "print", "where", "-o", "csv")
+    assert code == 0 and len(out.splitlines()) == len(printing.endpoints()) + 1
+    code, out, _ = run(capsys, "print", "where", "production", "-o", "csv")
+    assert "/ProductionOrdersList/Print" in out and "Production orders" in out
+    # the run-level production pick list is not mapped: say so rather than pretend
+    row = next(l for l in out.splitlines() if l.startswith("/ProductionOrder/Print"))
+    assert "no (not mapped)" in row
+
+
+def test_print_templates_uses_api_key(mock, capsys):
+    mock.routes[("GET", "/ref/templates")] = (200, {"Page": 1, "Templates": [{"TemplateID": "t1", "Type": "Sale", "Name": "Pick"}]}, {})
+    code, out, _ = run(capsys, "print", "templates", "--type", "Sale", "-o", "csv")
+    assert code == 0 and "t1,Sale,Pick" in out
+    assert mock.requests[0]["query"]["Type"] == "Sale" and "api-auth-applicationkey" in mock.requests[0]["headers"]
+
+
+def test_print_send_is_gated(web, monkeypatch, capsys, tmp_path):
+    web.routes[("POST", "/SaleList/Print")] = (200, "%PDF", {"Content-Disposition": 'attachment; filename="x.pdf"'})
+    base = ["print", "send", "/SaleList/Print", "--ids", "a,b", "--template", "T", "--save-dir", str(tmp_path)]
+    code, out, _ = run(capsys, *base, "--dry-run")
+    assert code == 0 and "IDList=a%2Cb" in out and web.requests == []
+    code, _, err = run(capsys, *base)
+    assert code == 2 and "--allow-print" in err and web.requests == []
+    monkeypatch.setattr(safety, "_ask", lambda prompt: "yes")
+    code, _, err = run(capsys, *base, "--allow-print")
+    assert code == 2 and "did not match" in err and web.requests == []
+    monkeypatch.setattr(safety, "_ask", lambda prompt: "print 2")
+    code, out, err = run(capsys, *base, "--allow-print")
+    assert code == 0 and "x.pdf" in out and "audit line" in err
+    assert web.requests[0]["body"] == {"TemplateID": "T", "IDList": "a,b"}
+    assert "sess12345678" in web.requests[0]["headers"]["cookie"]
+
+
+def test_print_send_refuses_unmapped_and_missing_template(web, capsys):
+    code, _, err = run(capsys, "print", "send", "/ProductionOrder/Print", "--ids", "a", "--dry-run")
+    assert code == 2 and "not mapped" in err
+    code, _, err = run(capsys, "print", "send", "/SaleList/Print", "--ids", "a", "--dry-run")
+    assert code == 2 and "template" in err
+    code, _, err = run(capsys, "print", "send", "/Sale/Print", "--ids", "a,b", "--template", "T", "--dry-run")
+    assert code == 2 and "one record" in err

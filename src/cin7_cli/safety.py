@@ -59,3 +59,22 @@ def check_write(op: Operation, req: Request, allow_write: bool, base_url: str) -
     answer = _ask(f"Type `{op.full_name}` to send this write, anything else cancels: ")
     if answer != op.full_name:
         raise WriteBlocked("cancelled: the confirmation did not match")
+
+
+PRINT_NOTE = (
+    "Printing returns a document and changes no record, but the Cin7 map marks it \"may log an audit line\": "
+    "Cin7 might note that you printed it. It runs as your signed-in browser session."
+)
+
+
+def check_print(count: int, req: Request, allow_print: bool, base_url: str) -> None:
+    """Return normally only when a person at a terminal typed `print <count>`."""
+    if not allow_print:
+        raise WriteBlocked("printing needs --allow-print and a typed confirmation (use --dry-run to see the request)")
+    _say("=" * 60)
+    _say(f"PRINT via Cin7 at {base_url}: {count} document(s)")
+    _say(PRINT_NOTE)
+    _say(req.describe())
+    _say("=" * 60)
+    if _ask(f"Type `print {count}` to print, anything else cancels: ") != f"print {count}":
+        raise WriteBlocked("cancelled: the confirmation did not match")

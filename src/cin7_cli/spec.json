@@ -1,6 +1,405 @@
 {
  "source": "fightmilk808/cin7-core-rebuild data/ (public-api-shapes.json, public-api.csv, endpoints.csv, wms-api.csv, mes-api.csv, report-service-endpoints.csv)",
  "web_base_url": "https://inventory.dearsystems.com",
+ "prints": [
+  {
+   "path": "/CustomerList/Print",
+   "method": "POST",
+   "methods_raw": "POST",
+   "params": [
+    "IDList",
+    "TemplateID",
+    "dateFrom",
+    "dateTo"
+   ],
+   "effect": "read (may log an audit line)",
+   "pages": [
+    "/CustomerList"
+   ],
+   "labels": [
+    "Customers / Credits"
+   ],
+   "id_param": "IDList",
+   "template_param": "TemplateID",
+   "sendable": true
+  },
+  {
+   "path": "/ExpenseClaimReceipt/Print",
+   "method": "GET",
+   "methods_raw": "GET",
+   "params": [
+    "PrintEntityID",
+    "PrintTemplateID"
+   ],
+   "effect": "read (may log an audit line)",
+   "pages": [
+    "/ExpenseClaimReceipt"
+   ],
+   "labels": [
+    "Receipt"
+   ],
+   "id_param": "PrintEntityID",
+   "template_param": "PrintTemplateID",
+   "sendable": true
+  },
+  {
+   "path": "/ExpenseClaimReceiptList/Print",
+   "method": "POST",
+   "methods_raw": "POST",
+   "params": [
+    "IDList",
+    "TemplateID"
+   ],
+   "effect": "read (may log an audit line)",
+   "pages": [
+    "/ExpenseClaimReceiptList"
+   ],
+   "labels": [
+    "Receipts"
+   ],
+   "id_param": "IDList",
+   "template_param": "TemplateID",
+   "sendable": true
+  },
+  {
+   "path": "/Opportunity/Print",
+   "method": "GET",
+   "methods_raw": "GET",
+   "params": [
+    "PrintEntityID",
+    "PrintTemplateID"
+   ],
+   "effect": "read (may log an audit line)",
+   "pages": [
+    "/Opportunity"
+   ],
+   "labels": [
+    "Opportunity"
+   ],
+   "id_param": "PrintEntityID",
+   "template_param": "PrintTemplateID",
+   "sendable": true
+  },
+  {
+   "path": "/OpportunityList/Print",
+   "method": "POST",
+   "methods_raw": "POST",
+   "params": [
+    "IDList",
+    "TemplateID"
+   ],
+   "effect": "read (may log an audit line)",
+   "pages": [
+    "/OpportunityList"
+   ],
+   "labels": [
+    "Opportunities"
+   ],
+   "id_param": "IDList",
+   "template_param": "TemplateID",
+   "sendable": true
+  },
+  {
+   "path": "/Product/Print",
+   "method": "POST",
+   "methods_raw": "POST",
+   "params": [
+    "IDList",
+    "TemplateID"
+   ],
+   "effect": "read (may log an audit line)",
+   "pages": [
+    "/FixedAssetType",
+    "/Product"
+   ],
+   "labels": [
+    "Fixed asset types",
+    "Product/Service/Asset"
+   ],
+   "id_param": "IDList",
+   "template_param": "TemplateID",
+   "sendable": true
+  },
+  {
+   "path": "/ProductionOrder/Print",
+   "method": "POST",
+   "methods_raw": "POST",
+   "params": [],
+   "effect": "write",
+   "pages": [
+    "/ProductionOrder"
+   ],
+   "labels": [
+    "Production order"
+   ],
+   "id_param": null,
+   "template_param": null,
+   "sendable": false
+  },
+  {
+   "path": "/ProductionOrdersList/Print",
+   "method": "POST",
+   "methods_raw": "POST",
+   "params": [
+    "orderIDs"
+   ],
+   "effect": "read (may log an audit line)",
+   "pages": [
+    "/ProductionOrders"
+   ],
+   "labels": [
+    "Production orders"
+   ],
+   "id_param": "orderIDs",
+   "template_param": null,
+   "sendable": true
+  },
+  {
+   "path": "/Purchase/Print",
+   "method": "GET",
+   "methods_raw": "GET",
+   "params": [
+    "PrintEntityID",
+    "PrintTemplateID"
+   ],
+   "effect": "read (may log an audit line)",
+   "pages": [
+    "/DropShipPurchase",
+    "/Purchase",
+    "/PurchaseAdvanced",
+    "/PurchaseCreditNote",
+    "/PurchaseService"
+   ],
+   "labels": [
+    "Drop shipment purchase (redirect target)",
+    "Simple purchase",
+    "Advanced purchase",
+    "Purchase credit note",
+    "Service purchase"
+   ],
+   "id_param": "PrintEntityID",
+   "template_param": "PrintTemplateID",
+   "sendable": true
+  },
+  {
+   "path": "/Purchase/PrintReceiveTo",
+   "method": "POST",
+   "methods_raw": "POST",
+   "params": [
+    "PrintTemplateID"
+   ],
+   "effect": "read (may log an audit line)",
+   "pages": [
+    "/DropShipPurchase",
+    "/MRPScheduler",
+    "/Purchase",
+    "/PurchaseAdvanced",
+    "/PurchaseCreditNote",
+    "/PurchaseList",
+    "/PurchaseService",
+    "/RMA",
+    "/RMAReturnOrder"
+   ],
+   "labels": [
+    "Drop shipment purchase (redirect target)",
+    "MRP scheduler",
+    "Simple purchase",
+    "Advanced purchase",
+    "Purchase credit note",
+    "Purchases",
+    "Service purchase",
+    "RMAs",
+    "Return orders"
+   ],
+   "id_param": null,
+   "template_param": "PrintTemplateID",
+   "sendable": false
+  },
+  {
+   "path": "/PurchaseList/Print",
+   "method": "POST",
+   "methods_raw": "POST",
+   "params": [
+    "IDList",
+    "TemplateID"
+   ],
+   "effect": "read (may log an audit line)",
+   "pages": [
+    "/PurchaseList"
+   ],
+   "labels": [
+    "Purchases"
+   ],
+   "id_param": "IDList",
+   "template_param": "TemplateID",
+   "sendable": true
+  },
+  {
+   "path": "/RMA/Print",
+   "method": "POST",
+   "methods_raw": "POST(form)",
+   "params": [],
+   "effect": "read (may log an audit line)",
+   "pages": [
+    "/RMA"
+   ],
+   "labels": [
+    "RMAs"
+   ],
+   "id_param": null,
+   "template_param": null,
+   "sendable": false
+  },
+  {
+   "path": "/RMAReturnOrder/Print",
+   "method": "POST",
+   "methods_raw": "POST(form)",
+   "params": [],
+   "effect": "read (may log an audit line)",
+   "pages": [
+    "/RMAReturnOrder"
+   ],
+   "labels": [
+    "Return orders"
+   ],
+   "id_param": null,
+   "template_param": null,
+   "sendable": false
+  },
+  {
+   "path": "/Sale/Print",
+   "method": "GET",
+   "methods_raw": "GET",
+   "params": [
+    "PrintEntityID",
+    "PrintTemplateID"
+   ],
+   "effect": "read (may log an audit line)",
+   "pages": [
+    "/Sale",
+    "/SaleMultiple"
+   ],
+   "labels": [
+    "Simple sale",
+    "Advanced sale"
+   ],
+   "id_param": "PrintEntityID",
+   "template_param": "PrintTemplateID",
+   "sendable": true
+  },
+  {
+   "path": "/SaleList/Print",
+   "method": "POST",
+   "methods_raw": "POST",
+   "params": [
+    "IDList",
+    "TemplateID"
+   ],
+   "effect": "read (may log an audit line)",
+   "pages": [
+    "/Deal",
+    "/Home",
+    "/SaleList"
+   ],
+   "labels": [
+    "Deal",
+    "Dashboard",
+    "Sales"
+   ],
+   "id_param": "IDList",
+   "template_param": "TemplateID",
+   "sendable": true
+  },
+  {
+   "path": "/SaleList/PrintCombined",
+   "method": "POST",
+   "methods_raw": "POST",
+   "params": [
+    "IDList",
+    "SortBy",
+    "TemplateID"
+   ],
+   "effect": "read (may log an audit line)",
+   "pages": [
+    "/Deal",
+    "/Home",
+    "/SaleList"
+   ],
+   "labels": [
+    "Deal",
+    "Dashboard",
+    "Sales"
+   ],
+   "id_param": "IDList",
+   "template_param": "TemplateID",
+   "sendable": true
+  },
+  {
+   "path": "/SaleService/Print",
+   "method": "GET",
+   "methods_raw": "GET",
+   "params": [
+    "PrintEntityID",
+    "PrintTemplateID"
+   ],
+   "effect": "read (may log an audit line)",
+   "pages": [
+    "/CreditNote",
+    "/SaleService"
+   ],
+   "labels": [
+    "Sale credit note",
+    "Service sale"
+   ],
+   "id_param": "PrintEntityID",
+   "template_param": "PrintTemplateID",
+   "sendable": true
+  },
+  {
+   "path": "/Stock/Print",
+   "method": "POST",
+   "methods_raw": "POST",
+   "params": [
+    "IDList",
+    "TemplateID"
+   ],
+   "effect": "read (may log an audit line)",
+   "pages": [
+    "/FixedAssetType",
+    "/Product",
+    "/Stock"
+   ],
+   "labels": [
+    "Fixed asset types",
+    "Product/Service/Asset",
+    "Availability"
+   ],
+   "id_param": "IDList",
+   "template_param": "TemplateID",
+   "sendable": true
+  },
+  {
+   "path": "/TaskList/Print",
+   "method": "POST",
+   "methods_raw": "POST",
+   "params": [
+    "IDList",
+    "TemplateID",
+    "dateFrom",
+    "dateTo"
+   ],
+   "effect": "read (may log an audit line)",
+   "pages": [
+    "/TaskList"
+   ],
+   "labels": [
+    "Tasks"
+   ],
+   "id_param": "IDList",
+   "template_param": "TemplateID",
+   "sendable": true
+  }
+ ],
  "base_url": "https://inventory.dearsystems.com/ExternalApi/v2",
  "commands": [
   {
@@ -40111,8 +40510,8 @@
   },
   {
    "source": "web",
-   "group": "web-shell",
-   "group_title": "Web \u00b7 Shell",
+   "group": "web-integrations",
+   "group_title": "Web \u00b7 Integrations",
    "name": "g-suites-directory",
    "resource": "/api/GSuites_Index_Directory",
    "title": "api \u00b7 read",
@@ -40132,8 +40531,8 @@
   },
   {
    "source": "web",
-   "group": "web-shell",
-   "group_title": "Web \u00b7 Shell",
+   "group": "web-integrations",
+   "group_title": "Web \u00b7 Integrations",
    "name": "g-suites-files",
    "resource": "/api/GSuites_Index_Files",
    "title": "api \u00b7 read",
@@ -55544,8 +55943,8 @@
   },
   {
    "source": "web",
-   "group": "web-other",
-   "group_title": "Web \u00b7 Other",
+   "group": "web-integrations",
+   "group_title": "Web \u00b7 Integrations",
    "name": "quickbooks-start-sync",
    "resource": "/api/Quickbooks_StartSync",
    "title": "api \u00b7 write",
@@ -55565,8 +55964,8 @@
   },
   {
    "source": "web",
-   "group": "web-other",
-   "group_title": "Web \u00b7 Other",
+   "group": "web-integrations",
+   "group_title": "Web \u00b7 Integrations",
    "name": "quickbooks-synchronisation-history",
    "resource": "/api/QuickbooksSynchronisation_History",
    "title": "api \u00b7 read+write",
@@ -55611,8 +56010,8 @@
   },
   {
    "source": "web",
-   "group": "web-other",
-   "group_title": "Web \u00b7 Other",
+   "group": "web-integrations",
+   "group_title": "Web \u00b7 Integrations",
    "name": "quickbooks-synchronisation-history-bulk-status-update",
    "resource": "/api/QuickbooksSynchronisation_History/BulkStatusUpdate",
    "title": "api \u00b7 write",
@@ -58737,8 +59136,8 @@
   },
   {
    "source": "web",
-   "group": "web-portals",
-   "group_title": "Web \u00b7 Portals",
+   "group": "web-integrations",
+   "group_title": "Web \u00b7 Integrations",
    "name": "rma-portal-v-web-portal",
    "resource": "/api/RmaPortal_Index_vWebPortal",
    "title": "api \u00b7 read+write",
@@ -68532,8 +68931,8 @@
   },
   {
    "source": "web",
-   "group": "web-reference-books",
-   "group_title": "Web \u00b7 Reference books",
+   "group": "web-integrations",
+   "group_title": "Web \u00b7 Integrations",
    "name": "tenant-address-v-tenant-address",
    "resource": "/api/TenantAddress_Index_vTenantAddress",
    "title": "api \u00b7 read+write",
@@ -82211,8 +82610,8 @@
   },
   {
    "source": "web",
-   "group": "web-shell",
-   "group_title": "Web \u00b7 Shell",
+   "group": "web-integrations",
+   "group_title": "Web \u00b7 Integrations",
    "name": "quickbooks-start-connection",
    "resource": "/Quickbooks/StartConnection",
    "title": "mvc \u00b7 write",
@@ -82269,8 +82668,8 @@
   },
   {
    "source": "web",
-   "group": "web-reference-books",
-   "group_title": "Web \u00b7 Reference books",
+   "group": "web-integrations",
+   "group_title": "Web \u00b7 Integrations",
    "name": "quickbooks-import-export-quickbooks",
    "resource": "/QuickbooksImportExport/Quickbooks",
    "title": "mvc \u00b7 write",
@@ -82294,8 +82693,8 @@
   },
   {
    "source": "web",
-   "group": "web-other",
-   "group_title": "Web \u00b7 Other",
+   "group": "web-integrations",
+   "group_title": "Web \u00b7 Integrations",
    "name": "quickbooks-synchronisation-get-last-sync-date",
    "resource": "/QuickbooksSynchronisation/GetLastSyncDate",
    "title": "mvc \u00b7 read",

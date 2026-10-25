@@ -6,7 +6,7 @@ pytest.importorskip("textual")
 
 from textual.widgets import Button, Checkbox, DataTable, Input, Static, Tree  # noqa: E402
 
-from cin7_cli import spec  # noqa: E402
+from cin7_cli import printing, spec  # noqa: E402
 import json  # noqa: E402
 
 from cin7_cli.tui import Cin7Tui, ParamInput, first_ok  # noqa: E402
@@ -26,7 +26,7 @@ def _param(app, flag: str) -> Input:
 
 
 def _groups(tree):
-    return [(h, g) for h in tree.root.children for g in h.children if isinstance(g.data, tuple)]
+    return [(h, g) for h in tree.root.children for g in h.children if isinstance(g.data, tuple) and g.data[0] == "group"]
 
 
 async def test_tree_sections_and_main_groups_first(tmp_path):
@@ -37,12 +37,14 @@ async def test_tree_sections_and_main_groups_first(tmp_path):
         app._fill_tree("")
         await pilot.pause()
         heads = [str(h.label) for h in tree.root.children]
-        assert "MAIN" in heads[0] and "Public API" in heads[1] and "INTERNAL" in heads[2] and "Reference" in heads[3]
+        assert "MAIN" in heads[0] and "Public API" in heads[1] and "INTERNAL" in heads[2]
+        assert "PRINT" in heads[3] and "Reference" in heads[4]
         main = [g.data[1] for g in tree.root.children[0].children]
         assert main == ["product", "sale", "stock", "production", "purchase"]
         groups = _groups(tree)
         assert len(groups) == len(spec.groups())
         assert sum(len(g.children) for _, g in groups) == len(spec.operations())
+        assert len(tree.root.children[3].children) == len(printing.endpoints())
         app.query_one("#filter", Input).value = "saleList"
         await pilot.pause()
         assert [g.data[1] for _, g in _groups(tree)][0] == "sale"
@@ -346,3 +348,195 @@ async def test_sidebar_toggle_resize_compact_and_persist(tmp_path):
         assert app.compact and "[dim]" not in str(app.query_one("#ops", Tree).root.children[0].children[0].label).split("]")[-1:][0]
     again = Cin7Tui(export_dir=tmp_path)
     assert again.sidebar_width == w + 4 and again.compact
+
+
+# --- pinned, recent, quick views, saved filters, history, help ---------------------------------
+
+
+async def test_pin_and_recent_sections(mock, tmp_path):
+    mock.routes[("GET", "/saleList")] = (200, {"Total": 4, "Page": 1, "SaleList": SALES}, {})
+    app = Cin7Tui(export_dir=tmp_path)
+    async with app.run_test(size=(160, 50)) as pilot:
+        app.select(spec.find("sale", "list"))
+        await pilot.pause()
+        await pilot.press("p")
+        assert app.pins == ["sale list"]
+        heads = [str(h.label) for h in app.query_one("#ops", Tree).root.children]
+        assert "Pinned" in heads[0]
+        app.action_run()
+        await _settle(app, pilot)
+        assert app.recent == ["sale list"]
+        await pilot.press("p")
+        assert app.pins == []
+        heads = [str(h.label) for h in app.query_one("#ops", Tree).root.children]
+        assert "Recent" in heads[0]
+    assert Cin7Tui(export_dir=tmp_path).recent == ["sale list"], "remembered across sessions"
+
+
+async def test_quick_views_fill_run_and_sort(mock, tmp_path):
+    mock.routes[("GET", "/saleList")] = (200, {"Total": 4, "Page": 1, "SaleList": SALES}, {})
+    mock.routes[("GET", "/production/orderList")] = (200, {"ProductionOrderListItems": [
+        {"ProductionOrderID": "a", "OrderNumber": "MO-1", "Status": "COMPLETED", "RequiredByDate": "2026-11-01T00:00:00"},
+        {"ProductionOrderID": "b", "OrderNumber": "MO-3", "Status": "RELEASED", "RequiredByDate": "2026-11-09T00:00:00"},
+        {"ProductionOrderID": "c", "OrderNumber": "MO-2", "Status": "RELEASED", "RequiredByDate": "2026-11-02T00:00:00"},
+    ]}, {})
+    app = Cin7Tui(export_dir=tmp_path)
+    async with app.run_test(size=(160, 50)) as pilot:
+        await pilot.press("1")
+        await pilot.pause()
+        await _settle(app, pilot)
+        await pilot.pause()
+        assert mock.requests[0]["path"] == "/production/orderList" and mock.requests[0]["query"] == {"Limit": "100"}
+        assert [r["OrderNumber"] for r in app.view] == ["MO-2", "MO-3"], "completed hidden, soonest due first"
+        await pilot.press("4")
+        await pilot.pause()
+        await _settle(app, pilot)
+        await pilot.pause()
+        q = mock.requests[-1]["query"]
+        assert q == {"Limit": "100", "OrderStatus": "AUTHORISED", "CombinedShippingStatus": "NOT SHIPPED"}
+        assert app.query_one("#modebar").has_class("public")
+
+
+async def test_quick_views_are_read_only_operations():
+    from cin7_cli.tui import QUICK_VIEWS
+
+    assert [v[0] for v in QUICK_VIEWS] == ["1", "2", "3", "4"]
+    for _, _, group, name, params, _ in QUICK_VIEWS:
+        op = spec.find(group, name)
+        assert op is not None and first_ok(op) and not op.is_write
+        known = {p.name.lower() for p in op.params}
+        assert {k.lower() for k in params} <= known, (group, name, params)
+
+
+async def test_saved_filters_round_trip(mock, tmp_path):
+    mock.routes[("GET", "/saleList")] = (200, {"Total": 4, "Page": 1, "SaleList": SALES}, {})
+    app = Cin7Tui(export_dir=tmp_path)
+    async with app.run_test(size=(160, 50)) as pilot:
+        app.select(spec.find("sale", "list"))
+        await pilot.pause()
+        _param(app, "search").value = "#25147"
+        await pilot.press("ctrl+s")
+        await pilot.pause()
+        app.screen.query_one("#name").value = "this week"
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.saved["this week"] == {"op": "sale list", "params": {"Search": "#25147"}, "all_pages": False}
+        _param(app, "search").value = ""
+        await pilot.press("ctrl+o")
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        await _settle(app, pilot)
+        await pilot.pause()
+        assert mock.requests[-1]["query"] == {"Search": "#25147"}
+        await pilot.press("ctrl+o")
+        await pilot.pause()
+        await pilot.press("delete")
+        await pilot.pause()
+        assert app.saved == {}
+
+
+async def test_history_back_forward_and_side_pane(mock, tmp_path):
+    mock.routes[("GET", "/saleList")] = [
+        (200, {"Total": 1, "Page": 1, "SaleList": SALES[:1]}, {}),
+        (200, {"Total": 3, "Page": 1, "SaleList": SALES[1:]}, {}),
+    ]
+    app = Cin7Tui(export_dir=tmp_path)
+    async with app.run_test(size=(160, 50)) as pilot:
+        app.select(spec.find("sale", "list"))
+        await pilot.pause()
+        app.action_run()
+        await _settle(app, pilot)
+        await pilot.press("k")
+        side = app.query_one("#side")
+        assert side.has_class("on") and app.query_one("#table2", DataTable).row_count == 1
+        app.action_run()
+        await _settle(app, pilot)
+        assert len(app.view) == 3 and len(app.history) == 2
+        assert app.query_one("#table2", DataTable).row_count == 1, "pinned result stays put"
+        await pilot.press("less_than_sign")
+        assert len(app.view) == 1
+        await pilot.press("greater_than_sign")
+        assert len(app.view) == 3
+        await pilot.press("k")
+        assert not side.has_class("on")
+
+
+async def test_help_overlay(tmp_path):
+    from cin7_cli.tui import HelpScreen
+
+    app = Cin7Tui(export_dir=tmp_path)
+    async with app.run_test(size=(160, 50)) as pilot:
+        await pilot.press("question_mark")
+        await pilot.pause()
+        assert isinstance(app.screen, HelpScreen)
+        await pilot.press("escape")
+        await pilot.pause()
+        assert not isinstance(app.screen, HelpScreen)
+
+
+# --- printing -------------------------------------------------------------------------------
+
+
+async def test_mark_rows_and_print_flow(mock, monkeypatch, tmp_path):
+    monkeypatch.setenv("CIN7_WEB_BASE_URL", mock.url.removesuffix("/ExternalApi/v2"))
+    monkeypatch.setenv("CIN7_WEB_COOKIE", "a=bbbbbbbbbbbb")
+    mock.routes[("GET", "/saleList")] = (200, {"Total": 4, "Page": 1, "SaleList": SALES}, {})
+    mock.routes[("GET", "/ref/templates")] = (200, {"Page": 1, "Templates": [
+        {"TemplateID": "t-pick", "Type": "Sale", "Name": "Pick list"}, {"TemplateID": "t-inv", "Type": "Sale", "Name": "Invoice"}]}, {})
+    mock.routes[("POST", "/SaleList/Print")] = (200, "%PDF-fake", {"Content-Disposition": 'attachment; filename="picks.pdf"'})
+    app = Cin7Tui(export_dir=tmp_path)
+    async with app.run_test(size=(160, 50)) as pilot:
+        app.select(spec.find("sale", "list"))
+        await pilot.pause()
+        app.action_run()
+        await _settle(app, pilot)
+        table = app.query_one("#table", DataTable)
+        table.move_cursor(row=0, column=0)
+        await pilot.press("space")
+        table.move_cursor(row=2, column=0)
+        await pilot.press("space")
+        assert len(app.marked) == 2 and str(table.get_row_at(0)[0]).startswith("●")
+        await pilot.press("P")
+        await pilot.pause()
+        await pilot.pause()
+        # "Print as": plain SaleList/Print is the first choice
+        await pilot.press("enter")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        await pilot.press("enter")  # pick the first template
+        await pilot.pause()
+        assert not any(r["path"] == "/SaleList/Print" for r in mock.requests), "nothing printed before the confirmation"
+        app.screen.query_one("#name").value = "print 3"  # wrong count
+        await pilot.press("enter")
+        await pilot.pause()
+        assert not any(r["path"] == "/SaleList/Print" for r in mock.requests)
+
+
+async def test_print_confirmed_sends_form_and_saves(mock, monkeypatch, tmp_path):
+    monkeypatch.setenv("CIN7_WEB_BASE_URL", mock.url.removesuffix("/ExternalApi/v2"))
+    monkeypatch.setenv("CIN7_WEB_COOKIE", "a=bbbbbbbbbbbb")
+    mock.routes[("POST", "/SaleList/Print")] = (200, "%PDF-fake", {"Content-Disposition": 'attachment; filename="picks.pdf"'})
+    app = Cin7Tui(export_dir=tmp_path)
+    async with app.run_test(size=(160, 50)) as pilot:
+        pe = printing.find("/SaleList/Print")
+        app._confirm_print(pe, ["id1", "id2"], "t-pick", "Sale · Pick list")
+        await pilot.pause()
+        app.screen.query_one("#name").value = "print 2"
+        await pilot.press("enter")
+        await pilot.pause()
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        req = next(r for r in mock.requests if r["path"] == "/SaleList/Print")
+        assert req["body"] == {"TemplateID": "t-pick", "IDList": "id1,id2"} and "cookie" in req["headers"]
+        assert (tmp_path / "picks.pdf").exists()
+        assert app.query_one("#downloads", DataTable).row_count == 1
+
+
+async def test_print_section_is_informational(tmp_path):
+    app = Cin7Tui(export_dir=tmp_path)
+    async with app.run_test(size=(160, 50)) as pilot:
+        app._show_print_info(printing.find("/SaleList/PrintCombined"))
+        await pilot.pause()
+        assert app.query_one("#run", Button).disabled
+        assert "Sales" in str(app.query_one("#op-meta", Static).render())

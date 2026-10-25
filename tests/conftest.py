@@ -40,7 +40,11 @@ class MockCin7:
                     "path": u.path.removeprefix("/ExternalApi/v2"),
                     "query": dict(urllib.parse.parse_qsl(u.query)),
                     "headers": {k.lower(): v for k, v in self.headers.items()},
-                    "body": json.loads(raw) if raw else None,
+                    "body": (
+                        dict(urllib.parse.parse_qsl(raw.decode()))
+                        if raw and "x-www-form-urlencoded" in self.headers.get("Content-Type", "")
+                        else json.loads(raw) if raw else None
+                    ),
                 }
                 mock.requests.append(req)
                 route = mock.routes.get((self.command, req["path"]))

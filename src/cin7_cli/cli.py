@@ -16,10 +16,10 @@ import json
 import re
 import sys
 
-from . import __version__, auth, output, runner, spec
+from . import __version__, auth, output, printing, runner, spec
 from .client import ApiError, Client, Request, base_url, build_url
 from .ratelimit import DEFAULT_PER_MIN, MAX_PER_MIN, RateLimiter
-from .safety import WriteBlocked, check_write
+from .safety import WriteBlocked, check_print, check_write
 
 EXIT_OK, EXIT_API, EXIT_USAGE, EXIT_AUTH = 0, 1, 2, 3
 GUID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
@@ -143,6 +143,26 @@ def build_parser(only_group: str | None = "*") -> argparse.ArgumentParser:
     st.add_argument("--allow-writes", action="store_true", help="leave CIN7_CLI_READ_ONLY off (default: writes off)")
     au_sub.add_parser("status", help="where credentials come from (no values)")
     au_sub.add_parser("test", help="one GET /me call; prints the company name")
+
+    pr = top.add_parser("print", help="where printing lives in Cin7, and gated printing")
+    pr_sub = pr.add_subparsers(dest="print_command", metavar="<where|templates|send>")
+    pr_sub.required = True
+    pw = pr_sub.add_parser("where", help="every print action and the Cin7 screens it is on (no network)")
+    pw.add_argument("filter", nargs="?", default="")
+    pw.add_argument("-o", "--output", choices=["json", "table", "csv"], default="table")
+    pt = pr_sub.add_parser("templates", help="document templates (public API, API key)")
+    pt.add_argument("--type", help="Type filter, e.g. Sale")
+    pt.add_argument("--name", help="Name filter")
+    pt.add_argument("-o", "--output", choices=["json", "table", "csv"], default="table")
+    ps = pr_sub.add_parser("send", help="print documents through your Cin7 session (typed confirmation)")
+    ps.add_argument("endpoint", help="e.g. /SaleList/Print (see `cin7 print where`)")
+    ps.add_argument("--ids", required=True, help="comma-separated record ids (a list print takes many; others one)")
+    ps.add_argument("--template", help="template id (cin7 print templates)")
+    ps.add_argument("-q", "--param", type=_kv, action="append", default=[], metavar="KEY=VALUE", help="extra form field, e.g. SortBy=…")
+    ps.add_argument("--allow-print", action="store_true", help="permit it after a typed confirmation")
+    ps.add_argument("--dry-run", action="store_true")
+    ps.add_argument("--save-dir", default=".")
+    ps.add_argument("--rate", type=float, default=float(auth.setting("CIN7_RATE_PER_MIN", str(DEFAULT_PER_MIN))))
 
     wh = top.add_parser("webhook-events", help="webhook payload shapes from the API Blueprint")
     wh.add_argument("event", nargs="?", help="e.g. Sale/Created")
@@ -295,6 +315,64 @@ def _cmd_auth(args) -> int:
         return EXIT_API
 
 
+def _cmd_print(args) -> int:
+    if args.print_command == "where":
+        rows = [
+            {
+                "endpoint": p.path, "method": p.method, "takes": ("many ids" if p.bulk else "one id") if p.sendable else "?", "template": "yes" if p.template_param else "",
+                "sendable": "yes" if p.sendable else "no (not mapped)", "on Cin7 screens": p.where,
+            }
+            for p in printing.endpoints()
+            if args.filter.lower() in f"{p.path} {p.where}".lower()
+        ]
+        print(output.render(rows, args.output))
+        return EXIT_OK
+    if args.print_command == "templates":
+        op = spec.find("templates", "list")
+        query = {k: v for k, v in (("Type", args.type), ("Name", args.name)) if v}
+        try:
+            client = runner.make_client(op, DEFAULT_PER_MIN)
+            data = runner.fetch(client, op, query, all_pages=True, progress=False)
+        except auth.AuthError as exc:
+            print(f"cin7: {exc}", file=sys.stderr)
+            return EXIT_AUTH
+        except ApiError as exc:
+            print(f"cin7: {exc}", file=sys.stderr)
+            return EXIT_API
+        print(output.render(data, args.output, op.list_key, ["TemplateID", "Type", "Name"]))
+        return EXIT_OK
+    pe = printing.find(args.endpoint)
+    if pe is None:
+        print(f"cin7: unknown print endpoint {args.endpoint} (cin7 print where)", file=sys.stderr)
+        return EXIT_USAGE
+    ids = [i.strip() for i in args.ids.split(",") if i.strip()]
+    try:
+        req = printing.build_request(pe, ids, args.template, dict(args.param))
+    except ValueError as exc:
+        print(f"cin7: {exc}", file=sys.stderr)
+        return EXIT_USAGE
+    if args.dry_run:
+        print(req.describe())
+        return EXIT_OK
+    try:
+        check_print(len(ids), req, args.allow_print, runner.web_base_url())
+        client = Client(auth.load_web(), RateLimiter(args.rate))
+        result = client.send(req, raw=True)
+    except WriteBlocked as exc:
+        print(f"cin7: {exc}", file=sys.stderr)
+        return EXIT_USAGE
+    except auth.AuthError as exc:
+        print(f"cin7: {exc}", file=sys.stderr)
+        return EXIT_AUTH
+    except ApiError as exc:
+        print(f"cin7: {exc}", file=sys.stderr)
+        return EXIT_API
+    fake = spec.Operation(group="print", group_title="Print", name=pe.path.strip("/").replace("/", "-").lower(), resource=pe.path,
+                          title="print", method=pe.method, path=pe.path, params=())
+    print(f"saved {runner.save_file(result, fake, args.save_dir)}")
+    return EXIT_OK
+
+
 def _run(args, op: spec.Operation, method: str, path: str) -> int:
     query = _query(args, op if args.command != "raw" else None)
     body = _read_body(getattr(args, "body", None))
@@ -354,6 +432,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_describe(args)
     if args.command == "auth":
         return _cmd_auth(args)
+    if args.command == "print":
+        return _cmd_print(args)
     if args.command == "tui":
         try:
             from . import tui
