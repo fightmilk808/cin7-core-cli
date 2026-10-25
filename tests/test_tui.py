@@ -632,3 +632,15 @@ async def test_text_in_an_id_field_is_looked_up(mock, tmp_path):
         await _settle(app, pilot)
         await pilot.pause()
         assert mock.requests[-1]["path"] == "/sale" and mock.requests[-1]["query"] == {"ID": many[1]["SaleID"]}
+
+
+async def test_lists_are_bold_in_the_sidebar(tmp_path):
+    from cin7_cli.tui import leaf_label
+
+    assert leaf_label(spec.find("sale", "list")) == "[bold]list[/]"
+    assert leaf_label(spec.find("sale", "credit-note-list")) == "[bold]credit-note-list[/]"
+    assert leaf_label(spec.find("production", "order-list")).startswith("[bold]")
+    assert leaf_label(spec.find("sale", "get")) == "get", "a single record is not a list"
+    assert "bold" not in leaf_label(spec.find("sale", "create")), "writes stay amber"
+    web = next(o for o in spec.operations() if o.source == "web" and o.runnable and o.paged)
+    assert "bold" in leaf_label(web, "#b58ad8")

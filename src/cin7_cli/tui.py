@@ -173,16 +173,24 @@ def first_ok(o: spec.Operation) -> bool:
     return (o.is_public and not o.is_write) or (not o.is_public and o.runnable)
 
 
+def is_list(o: spec.Operation) -> bool:
+    """A list view (as opposed to one record or an action): these are bold in the sidebar."""
+    return o.name == "list" or o.name.endswith("-list") or o.paged
+
+
 def leaf_label(o: spec.Operation, style: str = "") -> str:
-    """Tree label: ✎ for writes, ⬇ for downloads, ⛔ for internal ones that are never sent."""
+    """Tree label: bold for lists, ✎ for writes, ⬇ for downloads, ⛔ for internal ones that are never sent."""
     if o.is_public:
-        return f"[yellow]✎ {o.name}[/]" if o.is_write else o.name
+        if o.is_write:
+            return f"[yellow]✎ {o.name}[/]"
+        return f"[bold]{o.name}[/]" if is_list(o) else o.name
     if o.source != "web":
         return f"[dim]· {o.name}[/]"
     if not o.runnable:
         return f"[dim strike]⛔ {o.name}[/]"
     mark = "⬇ " if o.file else "↻ " if o.read_via_post else ""
-    return f"[{style}]{mark}{o.name}[/]" if style else f"{mark}{o.name}"
+    weight = "bold " if is_list(o) else ""
+    return f"[{weight}{style}]{mark}{o.name}[/]" if (style or weight) else f"{mark}{o.name}"
 
 
 CELL_WIDTHS = (24, 60, 160)
