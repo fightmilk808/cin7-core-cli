@@ -639,3 +639,28 @@ def test_table_and_csv_dates(mock, capsys):
     assert "Oct 25, 2026" in out and "T00:00" not in out and "08:30" not in out
     _, out, _ = run(capsys, "sale", "list", "-o", "csv")
     assert "2026-10-25" in out and "T00" not in out
+
+
+def test_currency_columns_show_dollars():
+    from cin7_cli import output
+
+    for col in ("Total", "InvoiceAmount", "Price", "Cost", "Balance", "AverageCost", "LandedCost", "SubTotal", "TaxTotal",
+                "Paid", "Freight", "AmountDue"):
+        assert output.is_money(col), col
+    for col in ("Quantity", "TaxRule", "TaxPercent", "Discount", "OrderNumber", "Status", "DueDate", "Currency", "CostingMethod",
+                "TotalCount", "ID", "PriceTier", "Account", "PaymentTerm"):
+        assert not output.is_money(col), col
+    assert output.cell(1234.5, col="Total") == "$1,234.50"
+    assert output.cell(-5, col="Balance") == "-$5.00"
+    assert output.cell(1234.5, col="Quantity") == "1234.5"
+    assert output.cell(1234.5, iso=True, col="Total") == "1234.5", "files keep raw numbers"
+    assert output.cell("12", col="Total") == "12", "only real numbers are formatted"
+
+
+def test_table_shows_dollars_csv_does_not(mock, capsys):
+    rows = [{"CustomerReference": "#1", "InvoiceAmount": 4812.5, "Quantity": 3}]
+    mock.routes[("GET", "/saleList")] = [(200, {"Total": 1, "Page": 1, "SaleList": rows}, {})] * 2
+    _, out, _ = run(capsys, "sale", "list", "-o", "table")
+    assert "$4,812.50" in out and "3" in out
+    _, out, _ = run(capsys, "sale", "list", "-o", "csv")
+    assert "4812.5" in out and "$" not in out

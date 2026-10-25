@@ -201,7 +201,8 @@ def json_label(key: object, value: object) -> str:
     if isinstance(value, bool):
         return f"{k}{sep}[magenta]{'true' if value else 'false'}[/]"
     if isinstance(value, (int, float)):
-        return f"{k}{sep}[cyan]{value}[/]"
+        shown = output.money(value) if output.is_money(str(key)) else value
+        return f"{k}{sep}[cyan]{shown}[/]"
     text = output.clean_date(str(value))
     return f"{k}{sep}[green]\"{rich_escape(text[:200])}{'…' if len(text) > 200 else ''}\"[/]"
 
@@ -943,7 +944,7 @@ class Cin7Tui(App):
             shown = self._shown_cols()
             rows = [
                 r for r in rows
-                if any(needle in output.cell(r.get(c)).lower() or needle in str(r.get(c, "")).lower() for c in shown)
+                if any(needle in output.cell(r.get(c), col=c).lower() or needle in str(r.get(c, "")).lower() for c in shown)
             ]
         self.view = rowtools.sort_rows(rows, self.sort_col, self.sort_desc)
         self._draw_table()
@@ -965,7 +966,7 @@ class Cin7Tui(App):
             cells = []
             rid = rowtools.record_id(r)
             for n, c in enumerate(cols):
-                text = output.cell(r.get(c))
+                text = output.cell(r.get(c), col=c)
                 if n == 0 and rid and rid in self.marked:
                     text = "● " + text
                 text = text if len(text) <= self.cell_width else text[: self.cell_width - 1] + "…"
@@ -1007,7 +1008,7 @@ class Cin7Tui(App):
 
         def total(rs: list[dict], c: str) -> str:
             t = sum(v for v in (r.get(c) for r in rs) if isinstance(v, (int, float)) and not isinstance(v, bool))
-            return f"{t:,.2f}".rstrip("0").rstrip(".")
+            return output.money(t) if output.is_money(c) else f"{t:,.2f}".rstrip("0").rstrip(".")
 
         for key, rs in sorted(groups.items(), key=lambda kv: -len(kv[1])):
             table.add_row(key, str(len(rs)), *[total(rs, c) for c in numeric])

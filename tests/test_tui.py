@@ -311,7 +311,7 @@ async def test_summary_record_json_and_downloads(mock, tmp_path):
         rows = [[str(c) for c in summary.get_row_at(i)] for i in range(summary.row_count)]
         assert rows[0][:2] == ["SHIPPED", "2"] and rows[-1][:2] == ["[Total]", "4"]
         assert any("Σ InvoiceAmount" == str(c.label) for c in summary.columns.values())
-        assert rows[-1][-1] == "134.5"
+        assert rows[-1][-1] == "$134.50"
         # record view: collapsible lazily-built tree
         table = app.query_one("#table", DataTable)
         table.move_cursor(row=0, column=0)

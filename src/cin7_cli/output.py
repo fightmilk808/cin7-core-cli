@@ -37,7 +37,30 @@ def clean_date(text: str, iso: bool = False) -> str:
     return f"{y:04d}-{mo:02d}-{d:02d}" if iso else f"{_MONTHS[mo - 1]} {d}, {y}"
 
 
-def cell(v: object, iso: bool = False) -> str:
+_MONEY = re.compile(
+    r"price|cost|amount|total|balance|paid|due(?!date)|tax(?!rule|percent|rate|inclusive|method)|fee|charge|payment|"
+    r"credit(?!note)|deposit|revenue|margin|profit|landed|average|subtotal|worth|surcharge|freight",
+    re.I,
+)
+_NOT_MONEY = re.compile(r"percent|qty|quantity|count|number|date|status|type|name|days|rate|terms|code|reference|account", re.I)
+
+
+def is_money(column: str | None) -> bool:
+    """A currency column, by name (Total, InvoiceAmount, Price, Cost, Balance…). Amounts are shown in USD."""
+    if not column or column.endswith(("ID", "Id")) or column.lower() == "id":
+        return False
+    return bool(_MONEY.search(column)) and not _NOT_MONEY.search(column)
+
+
+def money(v: float | int) -> str:
+    """`$1,234.50`, or `-$1,234.50`."""
+    return f"-${abs(v):,.2f}" if v < 0 else f"${v:,.2f}"
+
+
+def cell(v: object, iso: bool = False, col: str | None = None) -> str:
+    """One value as display text. Money columns show `$`; CSV (`iso`) keeps raw numbers."""
+    if isinstance(v, (int, float)) and not isinstance(v, bool) and not iso and is_money(col):
+        return money(v)
     if isinstance(v, str):
         return clean_date(v, iso)
     if v is None:
@@ -119,7 +142,7 @@ def render(data: object, fmt: str = "json", list_key: str | None = None, fields:
             w.writerow([cell(r.get(c), iso=True) for c in cols])
         return buf.getvalue().rstrip("\n")
     if fmt == "table":
-        cells = [[cell(r.get(c)) for c in cols] for r in rows]
+        cells = [[cell(r.get(c), col=c) for c in cols] for r in rows]
         widths = [min(48, max([len(c)] + [len(row[i]) for row in cells])) for i, c in enumerate(cols)]
 
         def line(vals: list[str]) -> str:
