@@ -41,17 +41,27 @@ cin7 tui
 
 ![cin7 tui listing sales by customer reference (sample data from the test mock)](docs/tui.svg)
 
-A [Textual](https://textual.textualize.io) terminal UI over the same spec, client, pacing and auth as the CLI:
+A [Textual](https://textual.textualize.io) terminal UI over the same spec, client, pacing and auth as the CLI. `?` lists every key.
 
-- **Left:** every group and operation. `/` filters by name, path or resource. Writes show in orange with ✎.
-- **Form:** one typed field per query parameter, with required ones starred and checked before anything is sent.
-  Enter or `^R` runs it; **All pages** walks a paged list.
-- **Results:** Table (Enter on a row opens it in Record), raw JSON, the Blueprint Shape, and a Log of calls.
-  `^E` / `^J` save the result as CSV or JSON in the current folder.
-- Sale rows lead with `CustomerReference`, then the `SO-` number (the CLI's table and CSV do the same).
+| | |
+|---|---|
+| **Mode bar** | Always on. Green `WRITES OFF · reads only · API key` for public calls; **red** `INTERNAL · signed-in browser session, acting as you` when the selected operation uses your Cin7 login; amber for reference-only. |
+| **Sidebar** | `ctrl+b` hide/show · `[` `]` narrower/wider · `c` compact (drops counts) · `/` filter. Width and compact are remembered. |
+| **Writes** | Hidden by default. `m` shows writes and never-sent endpoints (✎ / ⛔) so you can read their shapes. Seeing them never sends them. |
+| **Table** | Click a header or `s` to sort (asc, desc, off; numbers sort as numbers) · `h` hide column · `H` show all · `w` cell width 24/60/160 · lead columns (`CustomerReference`, `OrderNumber`) stay put while it scrolls · `ctrl+f` search the results as you type. |
+| **Colours** | Whole row: red = backordered, void, cancelled or overdue and still open; yellow = in progress; green = done. |
+| **Links** | The first column of a row is a clickable link when Cin7 has a page for it (`/Sale#<id>`, `/Product#…`, `/ProductionOrder#…`, `/MRP#…`; terminals with OSC 8 links). `o` opens it in the browser, `u` copies it. |
+| **Copy** | `y` cell · `Y` row as JSON · `i` the record's id · `u` link. |
+| **Summary tab** | Count rows by any column (Status, Customer, Supplier, …) with Σ totals for numeric columns, over the rows the search leaves. |
+| **Record / JSON tabs** | Collapsible trees coloured by type; nested lines (sale lines, BOM components) open on demand. Enter on a table row opens it in Record. |
+| **Downloads tab** | Every export and `⬇` download with time and path, kept across sessions; Enter opens the file. |
 
-**The TUI is read-only, full stop.** Write operations are listed so their request shapes can be read, but there is
-no way to send one from it; the Run button is disabled and the run path refuses them too.
+Record links come from the route names in the rebuild map's `pages.csv`; open one to check it before relying on it.
+
+![cin7 tui: sales sorted, coloured by status, with the mode bar and main groups (sample data from the test mock)](docs/tui.svg)
+
+**Still read-only, full stop.** Write operations can be listed (`m`) so their request shapes can be read, but there is
+no way to send one from the TUI.
 
 ## Internal endpoints (the web app's own API)
 
