@@ -5,6 +5,7 @@
 [![Read only by default](https://img.shields.io/badge/writes-off%20by%20default-f0883e)](#safety)
 [![MCP](https://img.shields.io/badge/MCP-server-8957e5)](#mcp-server)
 [![Tests](https://img.shields.io/badge/tests-118%20passing-2ea44f)](tests/)
+[![MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 **Every Cin7 Core public API v2 operation as a command, a terminal UI, and an MCP server.** Generated from the [cin7-core-rebuild](https://github.com/fightmilk808/cin7-core-rebuild) map.
 
@@ -37,7 +38,7 @@ flowchart LR
 ## Install
 
 ```bash
-pipx install 'cin7-core-cli[tui] @ git+ssh://git@github.com/fightmilk808/cin7-core-cli.git'
+pipx install 'cin7-core-cli[tui] @ git+https://github.com/fightmilk808/cin7-core-cli.git'
 ```
 
 ```bash
@@ -138,3 +139,5 @@ flowchart LR
 | 🗺️ The map it's built from | [cin7-core-rebuild](https://github.com/fightmilk808/cin7-core-rebuild) |
 | 🧩 Browser extension starter | [cin7-core-extension-example](https://github.com/fightmilk808/cin7-core-extension-example) |
 | 🧪 Develop | `pip install -e '.[dev]' && pytest -q` (mock server only, never live) |
+
+<sub>Independent project, not affiliated with or endorsed by Cin7. Cin7 and DEAR are trademarks of their owners.</sub> · [MIT](LICENSE)

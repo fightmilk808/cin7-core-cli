@@ -5,7 +5,7 @@ The full reference. The [README](../README.md) is the quick tour.
 ## TUI
 
 ```bash
-pipx install 'cin7-core-cli[tui] @ git+ssh://git@github.com/fightmilk808/cin7-core-cli.git'
+pipx install 'cin7-core-cli[tui] @ git+https://github.com/fightmilk808/cin7-core-cli.git'
 cin7 tui
 ```
 

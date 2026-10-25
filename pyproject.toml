@@ -7,6 +7,7 @@ name = "cin7-core-cli"
 version = "0.1.0"
 description = "Read-only-by-default command line for the Cin7 Core (DEAR Inventory) public API v2"
 readme = "README.md"
+license = { text = "MIT" }
 requires-python = ">=3.10"
 dependencies = []
 
