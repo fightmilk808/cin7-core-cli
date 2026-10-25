@@ -45,7 +45,7 @@ from textual.widgets import (
     Tree,
 )
 
-from . import auth, output, printing, ratelimit, rowtools, runner, spec
+from . import auth, output, printing, ratelimit, resolve, rowtools, runner, spec
 from .cli import TYPE_HINT, TYPES
 from .client import ApiError, base_url
 from .safety import PRINT_NOTE
@@ -202,7 +202,7 @@ def json_label(key: object, value: object) -> str:
         return f"{k}{sep}[magenta]{'true' if value else 'false'}[/]"
     if isinstance(value, (int, float)):
         return f"{k}{sep}[cyan]{value}[/]"
-    text = str(value)
+    text = output.clean_date(str(value))
     return f"{k}{sep}[green]\"{rich_escape(text[:200])}{'…' if len(text) > 200 else ''}\"[/]"
 
 
@@ -272,8 +272,8 @@ def raw_value(widget) -> str:
 class ParamInput(Input):
     """An Input bound to one query parameter."""
 
-    def __init__(self, param: spec.Param):
-        hint = TYPE_HINT.get(param.type, "TEXT")
+    def __init__(self, param: spec.Param, find: str = ""):
+        hint = find or TYPE_HINT.get(param.type, "TEXT")
         super().__init__(placeholder=f"{hint}{'  (required)' if param.required else ''}", id=f"p-{param.flag}")
         self.param = param
 
@@ -709,7 +709,8 @@ class Cin7Tui(App):
         rows = []
         for p in op.params:
             star = "*" if p.required else ""
-            widget = ParamSelect(p) if p.choices else ParamInput(p)
+            r = resolve.resolver_for(op, p)
+            widget = ParamSelect(p) if p.choices else ParamInput(p, find=r.hint if r else "")
             rows.append(Horizontal(Label(f"{p.name}{star}"), widget, classes="row"))
         if not rows:
             rows.append(Label("[dim]No query parameters[/]"))
@@ -786,6 +787,18 @@ class Cin7Tui(App):
         query = self.collect_query()
         if query is None:
             return
+        for prm in op.params:  # an id given as text (ref, SKU, name) is looked up first
+            value = query.get(prm.name)
+            try:
+                r = resolve.lookup_for(op, prm, value)
+            except ValueError as exc:
+                self.notify(str(exc), severity="error")
+                return
+            if r is not None:
+                self.running = True
+                self.set_status(f"Looking up {value!r}…")
+                self._lookup(op, prm, r, str(value))
+                return
         body = None
         if op.read_via_post:
             raw = self.query_one("#post-body", Input).value.strip()
@@ -799,6 +812,43 @@ class Cin7Tui(App):
         self.query_one("#run", Button).disabled = True
         self.set_status("Running…")
         self._call(op, query, body, all_pages)
+
+    @work(thread=True, exclusive=True, group="lookup")
+    def _lookup(self, op: spec.Operation, prm: spec.Param, r: resolve.Resolver, text: str) -> None:
+        try:
+            found = resolve.search(r, text, self._client)
+        except (ApiError, auth.AuthError, ValueError) as exc:
+            self.call_from_thread(self._failed, f"Lookup failed: {exc}")
+            return
+        self.call_from_thread(self._looked_up, prm, r, text, found)
+
+    def _looked_up(self, prm: spec.Param, r: resolve.Resolver, text: str, found: list[tuple[str, str]]) -> None:
+        self.running = False
+        widget = next((w for w in self._param_widgets() if w.param.name == prm.name), None)
+        if widget is None:
+            return
+        exact = [f for f in found if text.lower() in (f[0].lower().split(" · "))]
+        if len(found) > 1 and len(exact) == 1:
+            found = exact
+        if not found:
+            self.set_status(f"Nothing matches {text!r} ({r.hint})")
+            self.notify(f"Nothing matches {text!r}", severity="warning")
+            return
+        if len(found) == 1:
+            widget.value = found[0][1]
+            self.log_line(f"{text!r} → {found[0][0]}")
+            self.action_run()
+            return
+        items = {f"{label}  [{rid[:8]}]": "" for label, rid in found}
+        ids = {f"{label}  [{rid[:8]}]": rid for label, rid in found}
+
+        def chosen(choice: tuple | None) -> None:
+            if choice:
+                widget.value = ids[choice[1]]
+                self.action_run()
+
+        self.push_screen(PickScreen(f"{len(found)} match {text!r}", items), chosen)
+        self.set_status(f"{len(found)} matches: pick one")
 
     @work(thread=True, exclusive=True)
     def _call(self, op: spec.Operation, query: dict, body: object, all_pages: bool) -> None:
@@ -891,7 +941,10 @@ class Cin7Tui(App):
         rows = self.rows
         if needle:
             shown = self._shown_cols()
-            rows = [r for r in rows if any(needle in output.cell(r.get(c)).lower() for c in shown)]
+            rows = [
+                r for r in rows
+                if any(needle in output.cell(r.get(c)).lower() or needle in str(r.get(c, "")).lower() for c in shown)
+            ]
         self.view = rowtools.sort_rows(rows, self.sort_col, self.sort_desc)
         self._draw_table()
         self._fill_summary()

@@ -16,7 +16,7 @@ import json
 import re
 import sys
 
-from . import __version__, auth, output, printing, runner, spec
+from . import __version__, auth, output, printing, resolve, runner, spec
 from .client import ApiError, Client, Request, base_url, build_url
 from .ratelimit import DEFAULT_PER_MIN, MAX_PER_MIN, RateLimiter
 from .safety import WriteBlocked, check_print, check_write
@@ -34,12 +34,6 @@ def _bool(v: str) -> bool:
     raise argparse.ArgumentTypeError(f"expected true/false, got {v!r}")
 
 
-def _guid(v: str) -> str:
-    if not GUID_RE.match(v.strip()):
-        raise argparse.ArgumentTypeError(f"expected a GUID like 00000000-0000-0000-0000-000000000000, got {v!r}")
-    return v.strip()
-
-
 def _kv(v: str) -> tuple[str, str]:
     if "=" not in v:
         raise argparse.ArgumentTypeError(f"expected KEY=VALUE, got {v!r}")
@@ -47,7 +41,7 @@ def _kv(v: str) -> tuple[str, str]:
     return k, val
 
 
-TYPES = {"int": int, "bool": _bool, "guid": _guid, "date": str, "string": str}
+TYPES = {"int": int, "bool": _bool, "guid": str, "date": str, "string": str}  # guid: text is looked up in _run
 TYPE_HINT = {"int": "N", "bool": "true|false", "guid": "GUID", "date": "DATE", "string": "TEXT"}
 
 
@@ -94,7 +88,8 @@ def _op_parser(sub, op: spec.Operation) -> None:
             metavar=TYPE_HINT.get(prm.type, "TEXT"),
             required=prm.required,
             help=f"{prm.name} ({prm.type})" + (" required" if prm.required else "")
-            + (f" · one of: {', '.join(prm.choices)}" if prm.choices and prm.type != "bool" else ""),
+            + (f" · one of: {', '.join(prm.choices)}" if prm.choices and prm.type != "bool" else "")
+            + (f" · or look up by {r.hint}" if (r := resolve.resolver_for(op, prm)) else ""),
         )
     if op.paged:
         pg = p.add_argument_group("paging")
@@ -374,8 +369,44 @@ def _cmd_print(args) -> int:
     return EXIT_OK
 
 
+def _resolve_ids(args, op: spec.Operation, query: dict) -> int | None:
+    """Turn text given for an id parameter (a customer ref, SKU, name) into its GUID. None = all good."""
+    for prm in op.params:
+        value = query.get(prm.name)
+        try:
+            r = resolve.lookup_for(op, prm, value)
+        except ValueError as exc:
+            print(f"cin7: {exc}", file=sys.stderr)
+            return EXIT_USAGE
+        if r is None:
+            continue
+        try:
+            found = resolve.search(r, str(value), lambda lop: runner.make_client(lop, args.rate, args.timeout, args.verbose))
+        except (auth.AuthError, ApiError) as exc:
+            print(f"cin7: could not look up {value!r}: {exc}", file=sys.stderr)
+            return EXIT_AUTH if isinstance(exc, auth.AuthError) else EXIT_API
+        if not found:
+            print(f"cin7: nothing matches {value!r} ({r.hint})", file=sys.stderr)
+            return EXIT_USAGE
+        exact = [f for f in found if str(value).lower() in (f[0].lower().split(" · "))]
+        if len(found) > 1 and len(exact) == 1:
+            found = exact
+        if len(found) > 1:
+            print(f"cin7: {len(found)} records match {value!r}; pass the id of one:", file=sys.stderr)
+            for label, rid in found[:10]:
+                print(f"  {rid}  {label}", file=sys.stderr)
+            return EXIT_USAGE
+        print(f"cin7: {value!r} → {found[0][0]}", file=sys.stderr)
+        query[prm.name] = found[0][1]
+    return None
+
+
 def _run(args, op: spec.Operation, method: str, path: str) -> int:
     query = _query(args, op if args.command != "raw" else None)
+    if not args.dry_run:
+        bad = _resolve_ids(args, op, query)
+        if bad is not None:
+            return bad
     body = _read_body(getattr(args, "body", None))
     if body is not None and not (op.is_write or op.read_via_post):
         print("cin7: --body is only for writes and POST reads", file=sys.stderr)

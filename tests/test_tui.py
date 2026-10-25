@@ -596,3 +596,39 @@ async def test_drill_through_and_url_cells_are_bold(mock, tmp_path):
         link_cell = table.get_row_at(0)[app.cols.index("Link")]
         assert link_cell.style.bold and link_cell.style.link == "https://x.test/a"
         assert not table.get_row_at(0)[app.cols.index("Status")].style.bold
+
+
+async def test_text_in_an_id_field_is_looked_up(mock, tmp_path):
+    from cin7_cli.tui import PickScreen
+
+    sid = "11111111-2222-3333-4444-555555555555"
+    one = [{"SaleID": sid, "CustomerReference": "#25147", "Customer": "Acme"}]
+    mock.routes[("GET", "/saleList")] = [(200, {"Total": 1, "Page": 1, "SaleList": one}, {})]
+    mock.routes[("GET", "/sale")] = (200, {"ID": sid, "Customer": "Acme"}, {})
+    app = Cin7Tui(export_dir=tmp_path)
+    async with app.run_test(size=(160, 50)) as pilot:
+        app.select(spec.find("sale", "get"))
+        await pilot.pause()
+        assert "ref, SO-" in _param(app, "id").placeholder
+        _param(app, "id").value = "#25147"
+        app.action_run()
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        await _settle(app, pilot)
+        await pilot.pause()
+        assert _param(app, "id").value == sid, "the field now shows the id it resolved to"
+        assert [r["path"] for r in mock.requests] == ["/saleList", "/sale"]
+        # several matches: a picker, and nothing runs until one is chosen
+        many = [{"SaleID": f"2222222{i}-2222-3333-4444-555555555555", "CustomerReference": f"#{i}", "Customer": "Acme"} for i in range(2)]
+        mock.routes[("GET", "/saleList")] = [(200, {"Total": 2, "Page": 1, "SaleList": many}, {})]
+        mock.requests.clear()
+        _param(app, "id").value = "Acme"
+        app.action_run()
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        assert isinstance(app.screen, PickScreen) and [r["path"] for r in mock.requests] == ["/saleList"]
+        await pilot.press("down", "enter")
+        await pilot.pause()
+        await _settle(app, pilot)
+        await pilot.pause()
+        assert mock.requests[-1]["path"] == "/sale" and mock.requests[-1]["query"] == {"ID": many[1]["SaleID"]}

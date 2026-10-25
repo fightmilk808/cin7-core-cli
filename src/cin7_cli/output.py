@@ -19,7 +19,27 @@ def rows_of(data: object, list_key: str | None) -> list[dict]:
     return [{"value": data}]
 
 
-def cell(v: object) -> str:
+_DATE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?$")
+_MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+
+def clean_date(text: str, iso: bool = False) -> str:
+    """A date or timestamp as a date only: `Oct 25, 2026` (or `2026-10-25` for files). Empty for Cin7's 0001 'no date'.
+
+    Anything that isn't an ISO date or timestamp comes back unchanged.
+    """
+    m = _DATE.match(text.strip()) if isinstance(text, str) else None
+    if not m:
+        return text
+    y, mo, d = (int(g) for g in m.groups())
+    if y <= 1 or not 1 <= mo <= 12:
+        return ""
+    return f"{y:04d}-{mo:02d}-{d:02d}" if iso else f"{_MONTHS[mo - 1]} {d}, {y}"
+
+
+def cell(v: object, iso: bool = False) -> str:
+    if isinstance(v, str):
+        return clean_date(v, iso)
     if v is None:
         return ""
     if isinstance(v, list):
@@ -96,7 +116,7 @@ def render(data: object, fmt: str = "json", list_key: str | None = None, fields:
         w = csv.writer(buf, lineterminator="\n")
         w.writerow(cols)
         for r in rows:
-            w.writerow([cell(r.get(c)) for c in cols])
+            w.writerow([cell(r.get(c), iso=True) for c in cols])
         return buf.getvalue().rstrip("\n")
     if fmt == "table":
         cells = [[cell(r.get(c)) for c in cols] for r in rows]

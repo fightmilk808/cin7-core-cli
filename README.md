@@ -69,6 +69,27 @@ Record links come from the route names in the rebuild map's `pages.csv`; open on
 **Still read-only, full stop.** Write operations can be listed (`m`) so their request shapes can be read, but there is
 no way to send one from the TUI.
 
+## Text instead of ids
+
+Calls that want a record id also take something you know. `--id`, `--task-id`, `--sale-id`, `--product-id`,
+`--customer-id`, `--supplier-id`, `--production-order-id` and `--location-id` accept text, which is looked up through
+the matching list (read-only, API key) and used when exactly one record matches:
+
+```bash
+cin7 sale get --id '#25147'            # customer reference, SO number or customer
+cin7 product list --id LT-1234         # SKU, then name
+cin7 production order-get --production-order-id MO-13554
+```
+
+An exact match wins over partial ones; several matches are listed with their ids and nothing is sent; no match is an
+error. The TUI does the same: type text in any id field, run, and pick from a list when several match (the field then
+shows the id it resolved to). `--dry-run` never looks anything up.
+
+## Dates
+
+Dates and timestamps show as a date only: `Oct 25, 2026`, never a time (Cin7's empty `0001-01-01` shows blank). CSV
+files get plain `2026-10-25`; raw JSON is left exactly as Cin7 sent it. Sorting and search still use the full value.
+
 ## Printing
 
 Printing is often buried in Cin7 (a Print menu on a list, a button on a dashboard, a dropdown inside a run). The

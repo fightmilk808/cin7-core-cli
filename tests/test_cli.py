@@ -16,6 +16,8 @@ from .conftest import ACCOUNT, KEY
 SALE_ID = "11111111-2222-3333-4444-555555555555"
 
 
+
+
 def run(capsys, *argv):
     code = cli.main(list(argv))
     out, err = capsys.readouterr()
@@ -551,3 +553,89 @@ def test_key_columns_per_table():
     assert output.key_columns(sale) == ["CustomerReference", "Customer", "OrderNumber"]
     assert output.key_columns(["Foo", "Bar"]) == [] and rowtools.frozen_columns(["Foo", "Bar"]) == 0
     assert rowtools.frozen_columns(["Customer", "SKU", "Name"]) == 0, "hiding the lead column un-freezes rather than misleads"
+
+
+# --- text instead of ids -----------------------------------------------------------------------
+
+
+def test_text_is_resolved_to_an_id(mock, capsys):
+    mock.routes[("GET", "/saleList")] = (200, {"Total": 1, "Page": 1, "SaleList": [
+        {"SaleID": SALE_ID, "CustomerReference": "#25147", "OrderNumber": "SO-9", "Customer": "Acme"}]}, {})
+    mock.routes[("GET", "/sale")] = (200, {"ID": SALE_ID, "Customer": "Acme"}, {})
+    code, out, err = run(capsys, "sale", "get", "--id", "#25147")
+    assert code == 0 and json.loads(out)["ID"] == SALE_ID
+    assert mock.requests[0]["path"] == "/saleList" and mock.requests[0]["query"] == {"Search": "#25147", "Limit": "25"}
+    assert mock.requests[1]["path"] == "/sale" and mock.requests[1]["query"] == {"ID": SALE_ID}
+    assert "#25147" in err and "Acme" in err, "says what the text resolved to"
+
+
+def test_product_lookup_tries_sku_then_name(mock, capsys):
+    pid = "99999999-2222-3333-4444-555555555555"
+
+    def products(req):
+        if req["query"].get("Name") == "Pump":
+            return 200, {"Total": 1, "Page": 1, "Products": [{"ID": pid, "SKU": "P-1", "Name": "Pump"}]}, {}
+        return 200, {"Total": 0, "Page": 1, "Products": []}, {}
+
+    mock.routes[("GET", "/product")] = products
+    code, out, _ = run(capsys, "product", "list", "--id", "Pump", "--fields", "SKU")
+    assert code == 0
+    assert [r["query"] for r in mock.requests[:2]] == [{"Sku": "Pump", "Limit": "25"}, {"Name": "Pump", "Limit": "25"}]
+    assert mock.requests[2]["query"] == {"ID": pid}
+
+
+def test_several_matches_ask_for_an_id(mock, capsys):
+    rows = [{"SaleID": f"1111111{i}-2222-3333-4444-555555555555", "CustomerReference": f"#{i}", "Customer": "Acme"} for i in range(3)]
+    mock.routes[("GET", "/saleList")] = (200, {"Total": 3, "Page": 1, "SaleList": rows}, {})
+    code, _, err = run(capsys, "sale", "get", "--id", "Acme")
+    assert code == 2 and "3 records match" in err and rows[0]["SaleID"] in err
+    assert [r["path"] for r in mock.requests] == ["/saleList"], "never guesses between several"
+
+
+def test_exact_match_wins_among_several(mock, capsys):
+    rows = [{"SaleID": f"1111111{i}-2222-3333-4444-555555555555", "CustomerReference": ref} for i, ref in enumerate(["#25", "#2", "#250"])]
+    mock.routes[("GET", "/saleList")] = (200, {"Total": 3, "Page": 1, "SaleList": rows}, {})
+    mock.routes[("GET", "/sale")] = (200, {"ID": rows[1]["SaleID"]}, {})
+    code, out, _ = run(capsys, "sale", "get", "--id", "#2")
+    assert code == 0 and mock.requests[1]["query"] == {"ID": rows[1]["SaleID"]}
+
+
+def test_no_match_and_unresolvable(mock, capsys):
+    mock.routes[("GET", "/saleList")] = (200, {"Total": 0, "Page": 1, "SaleList": []}, {})
+    code, _, err = run(capsys, "sale", "get", "--id", "nope")
+    assert code == 2 and "nothing matches" in err
+    from cin7_cli import resolve
+
+    group, op, prm = next((o.group, o, p) for o in spec.operations() if o.is_public for p in o.params
+                          if p.type == "guid" and resolve.resolver_for(o, p) is None)
+    code, _, err = run(capsys, group, op.name, f"--{prm.flag}", "not-a-guid")
+    assert code == 2 and "expects a GUID" in err
+
+
+def test_guid_passes_through_and_dry_run_never_looks_up(mock, capsys):
+    run(capsys, "sale", "get", "--id", SALE_ID, "--dry-run")
+    run(capsys, "sale", "get", "--id", "#25147", "--dry-run")
+    assert mock.requests == []
+
+
+def test_dates_show_without_times():
+    from cin7_cli import output
+
+    assert output.clean_date("2026-10-25T00:00:00") == "Oct 25, 2026"
+    assert output.clean_date("2026-10-25T14:03:22.123Z") == "Oct 25, 2026"
+    assert output.clean_date("2026-10-25 14:03") == "Oct 25, 2026"
+    assert output.clean_date("2026-10-25") == "Oct 25, 2026"
+    assert output.clean_date("2026-10-25T00:00:00", iso=True) == "2026-10-25"
+    assert output.clean_date("0001-01-01T00:00:00") == "", "Cin7's empty date"
+    for keep in ("SO-18200", "#25147", "2026-13-40x", "12:30", "Total: 2026-10-25"):
+        assert output.clean_date(keep) == keep
+    assert output.cell(["2026-10-25"]) == "[1]" and output.cell(5) == "5"
+
+
+def test_table_and_csv_dates(mock, capsys):
+    rows = [{"CustomerReference": "#1", "ShipBy": "2026-10-25T00:00:00", "OrderDate": "2026-10-20T08:30:00Z"}]
+    mock.routes[("GET", "/saleList")] = [(200, {"Total": 1, "Page": 1, "SaleList": rows}, {})] * 2
+    _, out, _ = run(capsys, "sale", "list", "-o", "table")
+    assert "Oct 25, 2026" in out and "T00:00" not in out and "08:30" not in out
+    _, out, _ = run(capsys, "sale", "list", "-o", "csv")
+    assert "2026-10-25" in out and "T00" not in out
