@@ -159,7 +159,7 @@ def load_web() -> WebSession:
     if not value:
         raise AuthError(
             f"internal endpoints need a signed-in Cin7 browser session: save the Cookie header in 1Password and run"
-            f" `cin7 auth setup --cookie-ref op://…` (see README)"
+            f" `cin7 auth setup --cookie-ref op://…` (see docs/GUIDE.md, Internal endpoints)"
         )
     return WebSession(_resolve({COOKIE_ENV: value})[COOKIE_ENV].strip().removeprefix("Cookie:").strip())
 

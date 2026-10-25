@@ -131,7 +131,7 @@ class Client:
         if status in (301, 302, 303, 307, 308):
             loc = headers.get("Location", "") if headers else ""
             if "login" in loc.lower():
-                return ApiError(status, "the Cin7 web session has expired: save a fresh Cookie header (see README)")
+                return ApiError(status, "the Cin7 web session has expired: save a fresh Cookie header (see docs/GUIDE.md, Internal endpoints)")
             return ApiError(status, f"redirected to {loc or '?'}: Cin7 does this for a wrong path or casing")
         body = _parse(raw)
         msg = {
