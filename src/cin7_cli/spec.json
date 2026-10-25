@@ -1138,10 +1138,18 @@
     },
     "IncludeDeprecated": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "include-deprecated"
     },
     "IncludeProductPrices": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "include-product-prices"
     }
    },
@@ -1651,6 +1659,10 @@
     },
     "ShowUsedCredits": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "show-used-credits"
     }
    },
@@ -1696,6 +1708,14 @@
     },
     "Status": {
      "type": "string",
+     "choices": [
+      "DRAFT",
+      "WORK IN PROGRESS",
+      "COMPLETED",
+      "VOIDED",
+      "AUTHORISED",
+      "IN PROGRESS"
+     ],
      "flag": "status"
     },
     "Search": {
@@ -1910,6 +1930,10 @@
     },
     "Void": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "void"
     }
    },
@@ -2078,6 +2102,13 @@
     },
     "Status": {
      "type": "string",
+     "choices": [
+      "DRAFT",
+      "AUTHORISED",
+      "IN PROGRESS",
+      "COMPLETED",
+      "VOIDED"
+     ],
      "flag": "status"
     },
     "Search": {
@@ -2430,6 +2461,10 @@
     },
     "Void": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "void"
     }
    },
@@ -2826,6 +2861,11 @@
     },
     "Status": {
      "type": "string",
+     "choices": [
+      "DRAFT",
+      "COMPLETED",
+      "VOIDED"
+     ],
      "flag": "status"
     },
     "Search": {
@@ -3052,6 +3092,10 @@
     },
     "Void": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "void"
     }
    },
@@ -3097,6 +3141,11 @@
     },
     "Status": {
      "type": "string",
+     "choices": [
+      "DRAFT",
+      "COMPLETED",
+      "VOIDED"
+     ],
      "flag": "status"
     },
     "Search": {
@@ -3274,6 +3323,10 @@
     },
     "Void": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "void"
     }
    },
@@ -3324,6 +3377,10 @@
     },
     "Deprecated": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "deprecated"
     },
     "Name": {
@@ -3530,6 +3587,10 @@
     },
     "DefaultForType": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "default-for-type"
     },
     "Country": {
@@ -3706,6 +3767,10 @@
     },
     "DefaultForType": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "default-for-type"
     },
     "Phone": {
@@ -3872,6 +3937,11 @@
     },
     "Status": {
      "type": "string",
+     "choices": [
+      "DRAFT",
+      "COMPLETED",
+      "VOIDED"
+     ],
      "flag": "status"
     },
     "Search": {
@@ -3880,6 +3950,11 @@
     },
     "TaskType": {
      "type": "string",
+     "choices": [
+      "Spend Money",
+      "Receive Money",
+      "Transfer Money"
+     ],
      "flag": "task-type"
     }
    },
@@ -4123,6 +4198,10 @@
     },
     "Void": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "void"
     }
    },
@@ -4292,6 +4371,10 @@
     },
     "Void": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "void"
     }
    },
@@ -4346,10 +4429,18 @@
     },
     "IsActive": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "is-active"
     },
     "IsDefault": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "is-default"
     }
    },
@@ -4526,30 +4617,58 @@
     },
     "IncludeDeprecated": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "include-deprecated"
     },
     "IncludeBOM": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "include-bom"
     },
     "IncludeSuppliers": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "include-suppliers"
     },
     "IncludeMovements": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "include-movements"
     },
     "IncludeAttachments": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "include-attachments"
     },
     "IncludeReorderLevels": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "include-reorder-levels"
     },
     "IncludeCustomPrices": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "include-custom-prices"
     }
    },
@@ -6197,6 +6316,10 @@
     },
     "ReturnAttachmentsContent": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "return-attachments-content"
     }
    },
@@ -6689,6 +6812,10 @@
     },
     "ReturnAttachmentsContent": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "return-attachments-content"
     }
    },
@@ -7176,6 +7303,10 @@
     },
     "ReturnAttachmentsContent": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "return-attachments-content"
     }
    },
@@ -7335,6 +7466,10 @@
    "params": {
     "RecalculateDates": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "recalculate-dates"
     }
    },
@@ -7523,10 +7658,18 @@
    "params": {
     "AllowRecalculateDates": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "allow-recalculate-dates"
     },
     "AllowRecalculateCyclesAndQuantities": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "allow-recalculate-cycles-and-quantities"
     }
    },
@@ -8177,6 +8320,10 @@
     },
     "ReturnAttachmentsContent": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "return-attachments-content"
     }
    },
@@ -8547,6 +8694,10 @@
     },
     "IncludeAttachmentContent": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "include-attachment-content"
     }
    },
@@ -8675,6 +8826,10 @@
     "IncreaseOrderQuantity": {
      "type": "bool",
      "required": true,
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "increase-order-quantity"
     }
    },
@@ -9647,6 +9802,10 @@
     },
     "OnlyActive": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "only-active"
     }
    },
@@ -9689,6 +9848,10 @@
     },
     "IncludeAttachments": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "include-attachments"
     }
    },
@@ -10281,6 +10444,10 @@
     },
     "OrderStatus": {
      "type": "string",
+     "choices": [
+      "VOIDED",
+      ", "
+     ],
      "flag": "order-status"
     },
     "RestockReceivedStatus": {
@@ -10289,18 +10456,43 @@
     },
     "InvoiceStatus": {
      "type": "string",
+     "choices": [
+      "VOIDED",
+      "DRAFT",
+      "AUTHORISED",
+      "NOT AVAILABLE"
+     ],
      "flag": "invoice-status"
     },
     "CreditNoteStatus": {
      "type": "string",
+     "choices": [
+      "VOIDED",
+      "DRAFT",
+      "AUTHORISED",
+      "NOT AVAILABLE"
+     ],
      "flag": "credit-note-status"
     },
     "UnstockStatus": {
      "type": "string",
+     "choices": [
+      "VOIDED",
+      "DRAFT",
+      "AUTHORISED",
+      "NOT AVAILABLE"
+     ],
      "flag": "unstock-status"
     },
     "Status": {
      "type": "string",
+     "choices": [
+      "NOT AVAILABLE",
+      "DRAFT",
+      "AUTHORISED",
+      "VOIDED",
+      "PAID"
+     ],
      "flag": "status"
     },
     "DropShipTaskID": {
@@ -10381,10 +10573,23 @@
     },
     "CreditNoteStatus": {
      "type": "string",
+     "choices": [
+      "VOIDED",
+      "DRAFT",
+      "AUTHORISED",
+      "NOT AVAILABLE"
+     ],
      "flag": "credit-note-status"
     },
     "Status": {
      "type": "string",
+     "choices": [
+      "NOT AVAILABLE",
+      "DRAFT",
+      "AUTHORISED",
+      "VOIDED",
+      "PAID"
+     ],
      "flag": "status"
     }
    },
@@ -11156,6 +11361,10 @@
     },
     "Void": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "void"
     }
    },
@@ -11979,6 +12188,10 @@
     },
     "DeleteAllocation": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "delete-allocation"
     }
    },
@@ -12942,6 +13155,10 @@
     },
     "Void": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "void"
     }
    },
@@ -13259,6 +13476,10 @@
     },
     "Void": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "void"
     }
    },
@@ -13548,6 +13769,10 @@
     },
     "Void": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "void"
     }
    },
@@ -13949,6 +14174,10 @@
     },
     "DeleteAllocation": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "delete-allocation"
     }
    },
@@ -15044,22 +15273,59 @@
     },
     "CombinedPickStatus": {
      "type": "string",
+     "choices": [
+      "VOIDED",
+      "NOT AVAILABLE",
+      "PICKED",
+      "PICKING",
+      "NOT PICKED",
+      "PARTIALLY PICKED"
+     ],
      "flag": "combined-pick-status"
     },
     "CombinedPackStatus": {
      "type": "string",
+     "choices": [
+      "VOIDED",
+      "NOT AVAILABLE",
+      "PACKED",
+      "PACKING",
+      "NOT PACKED",
+      "PARTIALLY PACKED"
+     ],
      "flag": "combined-pack-status"
     },
     "CombinedShippingStatus": {
      "type": "string",
+     "choices": [
+      "VOIDED",
+      "NOT AVAILABLE",
+      "SHIPPED",
+      "SHIPPING",
+      "NOT SHIPPED",
+      "PARTIALLY SHIPPED"
+     ],
      "flag": "combined-shipping-status"
     },
     "CombinedInvoiceStatus": {
      "type": "string",
+     "choices": [
+      "VOIDED",
+      "DRAFT",
+      "AUTHORISED",
+      "NOT AVAILABLE",
+      "PAID"
+     ],
      "flag": "combined-invoice-status"
     },
     "CreditNoteStatus": {
      "type": "string",
+     "choices": [
+      "VOIDED",
+      "DRAFT",
+      "AUTHORISED",
+      "NOT AVAILABLE"
+     ],
      "flag": "credit-note-status"
     },
     "ExternalID": {
@@ -15068,10 +15334,21 @@
     },
     "Status": {
      "type": "string",
+     "choices": [
+      "DRAFT",
+      "AUTHORISED",
+      "NOT AVAILABLE",
+      "VOIDED",
+      "PARTIALLY AUTHORISED"
+     ],
      "flag": "status"
     },
     "ReadyForShipping": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "ready-for-shipping"
     },
     "OrderLocationID": {
@@ -15161,10 +15438,23 @@
     },
     "CreditNoteStatus": {
      "type": "string",
+     "choices": [
+      "VOIDED",
+      "DRAFT",
+      "AUTHORISED",
+      "NOT AVAILABLE"
+     ],
      "flag": "credit-note-status"
     },
     "Status": {
      "type": "string",
+     "choices": [
+      "DRAFT",
+      "AUTHORISED",
+      "NOT AVAILABLE",
+      "VOIDED",
+      "PARTIALLY AUTHORISED"
+     ],
      "flag": "status"
     }
    },
@@ -16797,6 +17087,10 @@
     },
     "Void": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "void"
     }
    },
@@ -17765,6 +18059,10 @@
     },
     "Void": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "void"
     }
    },
@@ -18585,6 +18883,10 @@
     },
     "Void": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "void"
     }
    },
@@ -18843,6 +19145,10 @@
     },
     "Void": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "void"
     }
    },
@@ -19195,6 +19501,15 @@
     },
     "Status": {
      "type": "string",
+     "choices": [
+      "DRAFT",
+      "COMPLETED",
+      "VOIDED",
+      "IN PROGRESS",
+      "IN TRANSIT",
+      "AUTHORISED",
+      "NOT AVAILABLE"
+     ],
      "flag": "status"
     }
    },
@@ -19503,6 +19818,10 @@
     },
     "Void": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "void"
     }
    },
@@ -19543,6 +19862,15 @@
     },
     "Status": {
      "type": "string",
+     "choices": [
+      "DRAFT",
+      "COMPLETED",
+      "VOIDED",
+      "IN PROGRESS",
+      "IN TRANSIT",
+      "AUTHORISED",
+      "NOT AVAILABLE"
+     ],
      "flag": "status"
     }
    },
@@ -19998,6 +20326,10 @@
     },
     "Void": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "void"
     }
    },
@@ -20052,6 +20384,15 @@
     },
     "Status": {
      "type": "string",
+     "choices": [
+      "DRAFT",
+      "COMPLETED",
+      "VOIDED",
+      "IN PROGRESS",
+      "IN TRANSIT",
+      "AUTHORISED",
+      "NOT AVAILABLE"
+     ],
      "flag": "status"
     },
     "Search": {
@@ -20409,6 +20750,10 @@
     },
     "Void": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "void"
     }
    },
@@ -20585,6 +20930,10 @@
     },
     "IncludeDeprecated": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "include-deprecated"
     }
    },
@@ -20911,14 +21260,26 @@
     },
     "IsActive": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "is-active"
     },
     "IsTaxForSale": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "is-tax-for-sale"
     },
     "IsTaxForPurchase": {
      "type": "bool",
+     "choices": [
+      "true",
+      "false"
+     ],
      "flag": "is-tax-for-purchase"
     },
     "Account": {
@@ -23986,8 +24347,12 @@
      "flag": "config-id"
     },
     "IsStockProduct": {
-     "type": "string",
-     "flag": "is-stock-product"
+     "type": "bool",
+     "flag": "is-stock-product",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "Name": {
      "type": "string",
@@ -27745,8 +28110,12 @@
      "flag": "account-id"
     },
     "hash": {
-     "type": "string",
-     "flag": "hash"
+     "type": "bool",
+     "flag": "hash",
+     "choices": [
+      "true",
+      "false"
+     ]
     }
    },
    "list_key": null,
@@ -28570,8 +28939,12 @@
    "path": "/api/Calendar_Index_vProductionCalendar",
    "params": {
     "allowCapacityUpdate": {
-     "type": "string",
-     "flag": "allow-capacity-update"
+     "type": "bool",
+     "flag": "allow-capacity-update",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "year": {
      "type": "string",
@@ -28610,8 +28983,12 @@
      "flag": "search"
     },
     "showCompleted": {
-     "type": "string",
-     "flag": "show-completed"
+     "type": "bool",
+     "flag": "show-completed",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "startDate": {
      "type": "string",
@@ -29282,8 +29659,12 @@
    "path": "/api/ChartOfAccounts_Index_vChartOfAccounts",
    "params": {
     "includeXeroAccountsIfPossible": {
-     "type": "string",
-     "flag": "include-xero-accounts-if-possible"
+     "type": "bool",
+     "flag": "include-xero-accounts-if-possible",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "returnActiveOnly": {
      "type": "string",
@@ -29566,8 +29947,12 @@
      "flag": "id"
     },
     "IsMigrated": {
-     "type": "string",
-     "flag": "is-migrated"
+     "type": "bool",
+     "flag": "is-migrated",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "MaskedDetails": {
      "type": "string",
@@ -33377,8 +33762,12 @@
      "flag": "id"
     },
     "isNew": {
-     "type": "string",
-     "flag": "is-new"
+     "type": "bool",
+     "flag": "is-new",
+     "choices": [
+      "true",
+      "false"
+     ]
     }
    },
    "list_key": null,
@@ -33453,8 +33842,12 @@
      "flag": "config-id"
     },
     "HasOutletSKU": {
-     "type": "string",
-     "flag": "has-outlet-sku"
+     "type": "bool",
+     "flag": "has-outlet-sku",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "Name": {
      "type": "string",
@@ -35002,8 +35395,12 @@
      "flag": "config-id"
     },
     "IsStockProduct": {
-     "type": "string",
-     "flag": "is-stock-product"
+     "type": "bool",
+     "flag": "is-stock-product",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "Name": {
      "type": "string",
@@ -36243,8 +36640,12 @@
      "flag": "config-id"
     },
     "IsStockProduct": {
-     "type": "string",
-     "flag": "is-stock-product"
+     "type": "bool",
+     "flag": "is-stock-product",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "Name": {
      "type": "string",
@@ -37759,8 +38160,12 @@
      "flag": "return-active-only"
     },
     "showDetails": {
-     "type": "string",
-     "flag": "show-details"
+     "type": "bool",
+     "flag": "show-details",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "type": {
      "type": "string",
@@ -40407,8 +40812,12 @@
      "flag": "search"
     },
     "showUsedCards": {
-     "type": "string",
-     "flag": "show-used-cards"
+     "type": "bool",
+     "flag": "show-used-cards",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "page": {
      "type": "int",
@@ -45131,8 +45540,12 @@
      "flag": "from-date"
     },
     "IsGroup": {
-     "type": "string",
-     "flag": "is-group"
+     "type": "bool",
+     "flag": "is-group",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "To": {
      "type": "string",
@@ -46050,8 +46463,12 @@
    "path": "/api/MRP_vTenantLocation",
    "params": {
     "IsShopFloor": {
-     "type": "string",
-     "flag": "is-shop-floor"
+     "type": "bool",
+     "flag": "is-shop-floor",
+     "choices": [
+      "true",
+      "false"
+     ]
     }
    },
    "list_key": null,
@@ -47472,8 +47889,12 @@
    "path": "/api/Opportunity_Index_vCustomerAddress",
    "params": {
     "isForLead": {
-     "type": "string",
-     "flag": "is-for-lead"
+     "type": "bool",
+     "flag": "is-for-lead",
+     "choices": [
+      "true",
+      "false"
+     ]
     }
    },
    "list_key": null,
@@ -47500,8 +47921,12 @@
    "path": "/api/Opportunity_Index_vCustomerContact",
    "params": {
     "isForLead": {
-     "type": "string",
-     "flag": "is-for-lead"
+     "type": "bool",
+     "flag": "is-for-lead",
+     "choices": [
+      "true",
+      "false"
+     ]
     }
    },
    "list_key": null,
@@ -47635,8 +48060,12 @@
      "flag": "customer-id"
     },
     "isLead": {
-     "type": "string",
-     "flag": "is-lead"
+     "type": "bool",
+     "flag": "is-lead",
+     "choices": [
+      "true",
+      "false"
+     ]
     }
    },
    "list_key": null,
@@ -47667,8 +48096,12 @@
      "flag": "customer-id"
     },
     "isLead": {
-     "type": "string",
-     "flag": "is-lead"
+     "type": "bool",
+     "flag": "is-lead",
+     "choices": [
+      "true",
+      "false"
+     ]
     }
    },
    "list_key": null,
@@ -48088,8 +48521,12 @@
    "path": "/api/PageAccess_Users/lock",
    "params": {
     "isLocked": {
-     "type": "string",
-     "flag": "is-locked"
+     "type": "bool",
+     "flag": "is-locked",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "userId": {
      "type": "string",
@@ -48539,8 +48976,12 @@
    "path": "/api/PaymentGateway_Index_GenerateAgreement",
    "params": {
     "isSandBox": {
-     "type": "string",
-     "flag": "is-sand-box"
+     "type": "bool",
+     "flag": "is-sand-box",
+     "choices": [
+      "true",
+      "false"
+     ]
     }
    },
    "list_key": null,
@@ -48702,8 +49143,12 @@
    "path": "/api/PaymentGateway_Index_PaymentGatewaySetupActivation",
    "params": {
     "IsActive": {
-     "type": "string",
-     "flag": "is-active"
+     "type": "bool",
+     "flag": "is-active",
+     "choices": [
+      "true",
+      "false"
+     ]
     }
    },
    "list_key": null,
@@ -49255,8 +49700,12 @@
    "path": "/api/PickRecommendation",
    "params": {
     "allowAllLocations": {
-     "type": "string",
-     "flag": "allow-all-locations"
+     "type": "bool",
+     "flag": "allow-all-locations",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "locationID": {
      "type": "string",
@@ -50750,8 +51199,12 @@
    "path": "/api/Product_Index_vProductCombinedList",
    "params": {
     "IsActive": {
-     "type": "string",
-     "flag": "is-active"
+     "type": "bool",
+     "flag": "is-active",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "lang": {
      "type": "string",
@@ -50884,8 +51337,12 @@
      "flag": "clone-make-to-order-conf"
     },
     "isMakeToOrder": {
-     "type": "string",
-     "flag": "is-make-to-order"
+     "type": "bool",
+     "flag": "is-make-to-order",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "sourceProductID": {
      "type": "string",
@@ -50945,8 +51402,12 @@
      "flag": "product-id"
     },
     "allowService": {
-     "type": "string",
-     "flag": "allow-service"
+     "type": "bool",
+     "flag": "allow-service",
+     "choices": [
+      "true",
+      "false"
+     ]
     }
    },
    "list_key": null,
@@ -51039,8 +51500,12 @@
    "path": "/api/Product_Index_vProductList",
    "params": {
     "IsActive": {
-     "type": "string",
-     "flag": "is-active"
+     "type": "bool",
+     "flag": "is-active",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "lang": {
      "type": "string",
@@ -52526,8 +52991,12 @@
      "flag": "current-production-order-id"
     },
     "IsBOMLoaded": {
-     "type": "string",
-     "flag": "is-bom-loaded"
+     "type": "bool",
+     "flag": "is-bom-loaded",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "ProductCode": {
      "type": "string",
@@ -52558,8 +53027,12 @@
    "path": "/api/ProductionOrder_Index_ShopFloorLocations",
    "params": {
     "onlyShopfloor": {
-     "type": "string",
-     "flag": "only-shopfloor"
+     "type": "bool",
+     "flag": "only-shopfloor",
+     "choices": [
+      "true",
+      "false"
+     ]
     }
    },
    "list_key": null,
@@ -53377,8 +53850,12 @@
      "flag": "resource-id"
     },
     "onlyActive": {
-     "type": "string",
-     "flag": "only-active"
+     "type": "bool",
+     "flag": "only-active",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "search": {
      "type": "string",
@@ -53937,8 +54414,12 @@
    "path": "/api/Purchase_Index_Product",
    "params": {
     "HideNonInventory": {
-     "type": "string",
-     "flag": "hide-non-inventory"
+     "type": "bool",
+     "flag": "hide-non-inventory",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "SupplierID": {
      "type": "string",
@@ -54076,8 +54557,12 @@
      "flag": "current-ui-lang"
     },
     "onlyBackorder": {
-     "type": "string",
-     "flag": "only-backorder"
+     "type": "bool",
+     "flag": "only-backorder",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "saleID": {
      "type": "string",
@@ -56255,8 +56740,12 @@
      "flag": "search"
     },
     "showRelated": {
-     "type": "string",
-     "flag": "show-related"
+     "type": "bool",
+     "flag": "show-related",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "page": {
      "type": "int",
@@ -56307,8 +56796,12 @@
      "flag": "search"
     },
     "showRelated": {
-     "type": "string",
-     "flag": "show-related"
+     "type": "bool",
+     "flag": "show-related",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "page": {
      "type": "int",
@@ -56405,8 +56898,12 @@
      "flag": "search"
     },
     "showRelated": {
-     "type": "string",
-     "flag": "show-related"
+     "type": "bool",
+     "flag": "show-related",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "page": {
      "type": "int",
@@ -56457,8 +56954,12 @@
      "flag": "search"
     },
     "showRelated": {
-     "type": "string",
-     "flag": "show-related"
+     "type": "bool",
+     "flag": "show-related",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "page": {
      "type": "int",
@@ -61582,8 +62083,12 @@
    "path": "/api/SaleMult_Index_Product",
    "params": {
     "IncludeNotAvailable": {
-     "type": "string",
-     "flag": "include-not-available"
+     "type": "bool",
+     "flag": "include-not-available",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "TaskLocationID": {
      "type": "string",
@@ -62814,8 +63319,12 @@
      "flag": "group-childs"
     },
     "includePlanned": {
-     "type": "string",
-     "flag": "include-planned"
+     "type": "bool",
+     "flag": "include-planned",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "requiredByUpdate": {
      "type": "string",
@@ -62830,8 +63339,12 @@
      "flag": "shop-floor-id"
     },
     "showCompleted": {
-     "type": "string",
-     "flag": "show-completed"
+     "type": "bool",
+     "flag": "show-completed",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "to": {
      "type": "string",
@@ -63250,8 +63763,12 @@
      "flag": "config-id"
     },
     "IsStockProduct": {
-     "type": "string",
-     "flag": "is-stock-product"
+     "type": "bool",
+     "flag": "is-stock-product",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "Name": {
      "type": "string",
@@ -65818,12 +66335,20 @@
      "flag": "search"
     },
     "showNonZero": {
-     "type": "string",
-     "flag": "show-non-zero"
+     "type": "bool",
+     "flag": "show-non-zero",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "showOnlyActive": {
-     "type": "string",
-     "flag": "show-only-active"
+     "type": "bool",
+     "flag": "show-only-active",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "sort": {
      "type": "string",
@@ -65874,8 +66399,12 @@
      "flag": "search"
     },
     "showNonZero": {
-     "type": "string",
-     "flag": "show-non-zero"
+     "type": "bool",
+     "flag": "show-non-zero",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "withBatches": {
      "type": "string",
@@ -67520,8 +68049,12 @@
    "path": "/api/SuggestReorder_Index_Access",
    "params": {
     "hash": {
-     "type": "string",
-     "flag": "hash"
+     "type": "bool",
+     "flag": "hash",
+     "choices": [
+      "true",
+      "false"
+     ]
     }
    },
    "list_key": null,
@@ -67631,8 +68164,12 @@
      "flag": "warehouse-id"
     },
     "hash": {
-     "type": "string",
-     "flag": "hash"
+     "type": "bool",
+     "flag": "hash",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "locationFromCache": {
      "type": "string",
@@ -67683,8 +68220,12 @@
      "flag": "locations"
     },
     "hash": {
-     "type": "string",
-     "flag": "hash"
+     "type": "bool",
+     "flag": "hash",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "locationFromCache": {
      "type": "string",
@@ -68165,8 +68706,12 @@
    "path": "/api/SupplierList_Index_vSupplierList",
    "params": {
     "IsActive": {
-     "type": "string",
-     "flag": "is-active"
+     "type": "bool",
+     "flag": "is-active",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "lang": {
      "type": "string",
@@ -68248,8 +68793,12 @@
      "flag": "search"
     },
     "showCompleted": {
-     "type": "string",
-     "flag": "show-completed"
+     "type": "bool",
+     "flag": "show-completed",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "status": {
      "type": "string",
@@ -69906,8 +70455,12 @@
    "path": "/api/TenantLocationEdit_TransferLocation",
    "params": {
     "includeComanLocation": {
-     "type": "string",
-     "flag": "include-coman-location"
+     "type": "bool",
+     "flag": "include-coman-location",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "limit": {
      "type": "string",
@@ -70773,8 +71326,12 @@
    "path": "/api/TenantTaxationRule_Index_Paging_vTenantTaxationRule",
    "params": {
     "IsActive": {
-     "type": "string",
-     "flag": "is-active"
+     "type": "bool",
+     "flag": "is-active",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "page": {
      "type": "int",
@@ -72651,8 +73208,12 @@
      "flag": "config-id"
     },
     "IsStockProduct": {
-     "type": "string",
-     "flag": "is-stock-product"
+     "type": "bool",
+     "flag": "is-stock-product",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "Name": {
      "type": "string",
@@ -74983,8 +75544,12 @@
    "path": "/ContinueSetup/ConnectToQuickBooks",
    "params": {
     "isSandbox": {
-     "type": "string",
-     "flag": "is-sandbox"
+     "type": "bool",
+     "flag": "is-sandbox",
+     "choices": [
+      "true",
+      "false"
+     ]
     }
    },
    "list_key": null,
@@ -76542,16 +77107,24 @@
      "flag": "inbound-shipment-id"
     },
     "IsPallet": {
-     "type": "string",
-     "flag": "is-pallet"
+     "type": "bool",
+     "flag": "is-pallet",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "fromBox": {
      "type": "string",
      "flag": "from-box"
     },
     "isPartnered": {
-     "type": "string",
-     "flag": "is-partnered"
+     "type": "bool",
+     "flag": "is-partnered",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "numberOfBoxes": {
      "type": "string",
@@ -81296,8 +81869,12 @@
      "flag": "id"
     },
     "allowUndoTasks": {
-     "type": "string",
-     "flag": "allow-undo-tasks"
+     "type": "bool",
+     "flag": "allow-undo-tasks",
+     "choices": [
+      "true",
+      "false"
+     ]
     }
    },
    "list_key": null,
@@ -81456,12 +82033,20 @@
      "flag": "id"
     },
     "allowVoidNestedOrders": {
-     "type": "string",
-     "flag": "allow-void-nested-orders"
+     "type": "bool",
+     "flag": "allow-void-nested-orders",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "allowVoidTasks": {
-     "type": "string",
-     "flag": "allow-void-tasks"
+     "type": "bool",
+     "flag": "allow-void-tasks",
+     "choices": [
+      "true",
+      "false"
+     ]
     }
    },
    "list_key": null,
@@ -82320,8 +82905,12 @@
    "path": "/Quickbooks/ConnectWizard",
    "params": {
     "isSandbox": {
-     "type": "string",
-     "flag": "is-sandbox"
+     "type": "bool",
+     "flag": "is-sandbox",
+     "choices": [
+      "true",
+      "false"
+     ]
     }
    },
    "list_key": null,
@@ -87234,8 +87823,12 @@
    "path": "/Stocktransfer/Undo",
    "params": {
     "IsPutAway": {
-     "type": "string",
-     "flag": "is-put-away"
+     "type": "bool",
+     "flag": "is-put-away",
+     "choices": [
+      "true",
+      "false"
+     ]
     },
     "TaskID": {
      "type": "string",

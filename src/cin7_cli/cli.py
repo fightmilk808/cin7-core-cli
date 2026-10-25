@@ -93,7 +93,8 @@ def _op_parser(sub, op: spec.Operation) -> None:
             type=TYPES.get(prm.type, str),
             metavar=TYPE_HINT.get(prm.type, "TEXT"),
             required=prm.required,
-            help=f"{prm.name} ({prm.type})" + (" required" if prm.required else ""),
+            help=f"{prm.name} ({prm.type})" + (" required" if prm.required else "")
+            + (f" · one of: {', '.join(prm.choices)}" if prm.choices and prm.type != "bool" else ""),
         )
     if op.paged:
         pg = p.add_argument_group("paging")

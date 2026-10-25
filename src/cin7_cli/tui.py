@@ -156,12 +156,13 @@ class HelpScreen(ModalScreen):
     BINDINGS = [Binding("escape", "close", "Close"), Binding("question_mark", "close", "Close"), Binding("q", "close", "Close")]
     DEFAULT_CSS = """
     HelpScreen { align: center middle; }
-    HelpScreen > VerticalScroll { width: 100; height: 80%; border: round $accent; padding: 1 2; background: $surface; }
+    HelpScreen > VerticalScroll { width: 110; height: 80%; border: round $accent; padding: 1 2; background: $surface; }
     """
 
     def compose(self) -> ComposeResult:
         with VerticalScroll():
-            yield Static(HELP)
+            yield Static("[bold #ffb454]Cin7 TUI keys[/]  [dim]Esc, ? or q closes[/]\n")
+            yield Static(help_table())
 
     def action_close(self) -> None:
         self.dismiss(None)
@@ -185,11 +186,10 @@ def leaf_label(o: spec.Operation, style: str = "") -> str:
 
 
 CELL_WIDTHS = (24, 60, 160)
-STYLE_COLOURS = {"red": "red", "green": "green", "yellow": "yellow"}
 
 
 def json_label(key: object, value: object) -> str:
-    """Tree label for one JSON member, coloured by type."""
+    """Tree label for one JSON member, colored by type."""
     k = f"[bold]{rich_escape(str(key))}[/]" if key is not None else ""
     sep = ": " if key is not None else ""
     if isinstance(value, dict):
@@ -252,6 +252,23 @@ def add_history(entry: dict) -> None:
         pass
 
 
+class ParamSelect(Select):
+    """A dropdown bound to one query parameter that has a fixed set of values (blank = leave out)."""
+
+    def __init__(self, param: spec.Param):
+        super().__init__([(c, c) for c in param.choices], allow_blank=True, prompt="any" if not param.required else "choose",
+                         id=f"p-{param.flag}")
+        self.param = param
+
+
+def raw_value(widget) -> str:
+    """The text a parameter widget holds: blank when a dropdown is unset."""
+    if isinstance(widget, Select):
+        # Unset is a NoSelection sentinel (Select.NULL / BLANK, by Textual version), never a str.
+        return widget.value if isinstance(widget.value, str) else ""
+    return widget.value.strip()
+
+
 class ParamInput(Input):
     """An Input bound to one query parameter."""
 
@@ -261,30 +278,53 @@ class ParamInput(Input):
         self.param = param
 
 
-HELP = """[bold #ffb454]Cin7 TUI keys[/]  [dim](Esc, ? or q closes this)[/]
+HELP_ROWS = (
+    ("Run", "ctrl+r", "run the selected operation (Enter in any field does too)"),
+    ("", "f", "show or hide the filter form (it hides itself after a run)"),
+    ("", "ctrl+e · ctrl+j", "export the result as CSV · JSON (listed on the Downloads tab)"),
+    ("Quick views", "1  2  3  4", "open production orders · sales waiting on stock · latest MRP run · sales awaiting shipment"),
+    ("Pinned · Saved", "p", "pin or unpin the selected operation (pinned and recent sit at the top of the sidebar)"),
+    ("", "ctrl+s · ctrl+o", "save the form under a name · load or delete a saved filter"),
+    ("History", "<  >", "back and forward through earlier results"),
+    ("", "k", "freeze the current table in a right-hand pane to compare"),
+    ("Sidebar", "ctrl+b", "hide or show"),
+    ("", "[  ]", "narrower · wider"),
+    ("", "c · m · /", "compact (no counts) · show or hide writes (never sent) · filter operations"),
+    ("Table", "s  or click header", "sort: ascending, descending, off"),
+    ("", "h · H · w", "hide column · show all columns · cell width"),
+    ("", "ctrl+f", "search the results as you type"),
+    ("", "Enter", "open the row in the Record tab"),
+    ("Rows", "y · Y · i · u", "copy cell · row as JSON · id · link"),
+    ("", "o", "open the record in Cin7 (browser)"),
+    ("Print", "Space · ctrl+a", "mark a row · mark all"),
+    ("", "P", "print the marked rows: pick a template, then type a confirmation"),
+    ("Colors", "", "red: backordered, void, cancelled or overdue · yellow: in progress · green: done"),
+    ("Safety", "", "reads only. Writes and internal changes are never sent. The bar at the top names the credential in use."),
+)
 
-[bold]Run[/]        ctrl+r run · All pages checkbox · ctrl+e CSV · ctrl+j JSON · saved files are listed on the Downloads tab
-[bold]Quick[/]      1 open production orders · 2 sales waiting on stock · 3 latest MRP run (internal) · 4 sales awaiting shipment
-            all read-only; they fill the form, run it, and sort for you
-[bold]Pin·Recent[/] p pin/unpin the selected operation · pinned and recent operations sit at the top of the sidebar
-[bold]Saved[/]      ctrl+s save the form under a name (this week's sales) · ctrl+o load or delete a saved filter
-[bold]History[/]    < back · > forward through earlier results · k pin the current result in a right-hand pane (k again closes it)
-[bold]Sidebar[/]    ctrl+b hide/show · [ ] narrower/wider · c compact (no counts) · / filter · m show/hide writes (never sent)
-[bold]Table[/]      arrows move · Enter opens the record · s or click a header: sort (asc, desc, off) · h hide column · H show all
-            w cell width · ctrl+f search the results as you type
-[bold]Print[/]      Space mark a row · ctrl+a mark all · P print the marked rows (or the cursor row): pick template, type a confirmation
-            "🖨 PRINT" in the sidebar lists every print action in Cin7 and the screens it hides on
-[bold]Rows[/]       y copy cell · Y copy row as JSON · i copy id · u copy link · o open in Cin7 (browser)
-[bold]Colours[/]    red backordered/void/cancelled/overdue · yellow in progress · green done
-[bold]Tabs[/]       Table · Summary (count by a column, totals) · Record · JSON (both collapsible) · Shape · Downloads · Log
-[bold]Safety[/]     reads only. Writes and internal changes are never sent from here. The bar at the top says which credential is in use."""
+
+def help_table():
+    """The key list as an aligned two-column table."""
+    from rich.table import Table
+
+    t = Table.grid(padding=(0, 2), expand=True)
+    t.add_column(style="bold #ffb454", no_wrap=True)
+    t.add_column(style="bold", no_wrap=True)
+    t.add_column(ratio=1)
+    last = None
+    for section, keys, what in HELP_ROWS:
+        if section and last is not None:
+            t.add_row("", "", "")
+        last = section or last
+        t.add_row(section, keys, what)
+    return t
 
 
 class Cin7Tui(App):
     """Operation browser on the left, form and results on the right."""
 
     TITLE = "cin7"
-    SUB_TITLE = "Cin7 Core · public API + internal · read-only"
+    SUB_TITLE = ""
     CSS = """
     #modebar { height: 1; padding: 0 1; text-style: bold; }
     #modebar.idle { background: $success 25%; }
@@ -298,13 +338,19 @@ class Cin7Tui(App):
     #right { width: 1fr; }
     #op-title { padding: 0 1; text-style: bold; }
     #op-meta { padding: 0 1; color: $text-muted; }
-    #form { height: auto; max-height: 40%; padding: 0 1; }
-    .row { height: 1; margin-bottom: 1; }
-    .row Label { width: 34; }
+    #form { height: auto; max-height: 14; padding: 0 1; layout: grid; grid-size: 2; grid-gutter: 0 3; }
+    #form.collapsed { display: none; }
+    #form > Static, #form > Label { column-span: 2; }
+    .row { height: 1; }
+    .row Label { width: 24; color: $text-muted; }
     .row Input { width: 1fr; height: 1; border: none; padding: 0 1; background: $boost; }
     .row Input:focus { background: $primary 30%; }
-    #actions { height: auto; padding: 0 1; }
-    #actions Button { margin-right: 1; }
+    .row Select { width: 1fr; height: 1; }
+    .row Select > SelectCurrent { border: none; height: 1; padding: 0 1; background: $boost; }
+    .row Select:focus > SelectCurrent { background: $primary 30%; }
+    #actions { height: 1; padding: 0 1; margin: 1 0 0 0; }
+    #actions Button { height: 1; min-width: 12; border: none; margin-right: 2; padding: 0 2; }
+    #actions Checkbox { height: 1; border: none; padding: 0; margin-right: 2; background: transparent; }
     #status { padding: 0 1; color: $text-muted; height: 1; }
     #results { height: 1fr; }
     #search { height: 1; border: none; padding: 0 1; margin: 0 0 0 0; background: $boost; }
@@ -339,6 +385,7 @@ class Cin7Tui(App):
         Binding("u", "copy_url", "Link", show=False),
         Binding("o", "open_record", "Open in Cin7"),
         Binding("question_mark", "help", "Help"),
+        Binding("f", "toggle_form", "Filters"),
         Binding("p", "pin", "Pin", show=False),
         Binding("1", "quick('1')", "Prod orders", show=False),
         Binding("2", "quick('2')", "Waiting on stock", show=False),
@@ -506,6 +553,8 @@ class Cin7Tui(App):
 
     def _fill_tree(self, text: str) -> None:
         tree = self.query_one("#ops", Tree)
+        tree.show_root = False
+        tree.guide_depth = 3
         tree.clear()
         tree.root.expand()
         needle = text.lower().strip()
@@ -527,7 +576,7 @@ class Cin7Tui(App):
             head = tree.root.add(label, data=None, expand=True)
             for g, ops in found:
                 sendable = sum(first_ok(o) for o in ops)
-                title = MAIN_TITLES.get(g) or ops[0].group_title
+                title = MAIN_TITLES.get(g) or ops[0].group_title.removeprefix("Web · ")
                 counts = "" if self.compact else f" [dim]{sendable}/{len(ops)}[/]" if self.show_writes else f" [dim]{len(ops)}[/]"
                 node = head.add(f"[{style}]{title}[/]{counts}", data=("group", g), expand=bool(needle))
                 for o in ops:
@@ -541,22 +590,22 @@ class Cin7Tui(App):
             for o in ops:
                 head.add_leaf(f"{o.full_name}", data=o)
 
-        quick_section("[bold]📌 Pinned[/]", self.pins)
-        quick_section("[bold]🕘 Recent[/]", [n for n in self.recent if n not in self.pins][:MAX_RECENT])
+        quick_section("[bold]◆ PINNED[/]", self.pins)
+        quick_section("[bold]↺ RECENT[/]", [n for n in self.recent if n not in self.pins][:MAX_RECENT])
         public = [g for g, ops in by_group.items() if ops[0].is_public]
         section("[bold]★ MAIN[/]", [g for g in MAIN_GROUPS if g in public], "bold black on #ffb454")
-        section("[bold]Public API[/] [dim]· API key[/]", [g for g in public if g not in MAIN_GROUPS], "cyan")
+        section("[bold cyan]◇ PUBLIC API[/] [dim]· API key[/]", [g for g in public if g not in MAIN_GROUPS], "cyan")
         web = [g for g, ops in by_group.items() if ops[0].source == "web"]
         web.sort(key=lambda g: (g.removeprefix("web-") not in MAIN_WEB, g))
-        section("[bold #d070ff]⬢ INTERNAL[/] [dim]· web session, reads only[/]", web, "#d070ff", "#b58ad8")
+        section("[bold #d070ff]⬢ INTERNAL[/] [dim]· your login · reads only[/]", web, "#d070ff", "#b58ad8")
         prints = [p for p in printing.endpoints() if not needle or needle in f"{p.path} {p.where}".lower()]
         if prints:
-            head = tree.root.add("[bold #4fd1c5]🖨 PRINT[/] [dim]· where printing lives[/]", data=None, expand=bool(needle))
+            head = tree.root.add("[bold #4fd1c5]⎙ PRINT[/] [dim]· where printing lives[/]", data=None, expand=bool(needle))
             for pe in prints:
                 mark = "" if pe.sendable else " [dim](not mapped)[/]"
                 head.add_leaf(f"[#4fd1c5]{pe.path}[/] [dim]{'bulk' if pe.bulk else 'one'}[/]{mark}", data=("print", pe))
         ref = [g for g, ops in by_group.items() if ops[0].source in ("wms", "mes", "report-service")]
-        section("[bold dim]Reference only[/] [dim]· never sent[/]", ref, "dim")
+        section("[bold dim]▫ REFERENCE[/] [dim]· never sent[/]", ref, "dim")
 
     # --- events -------------------------------------------------------------
 
@@ -660,9 +709,11 @@ class Cin7Tui(App):
         rows = []
         for p in op.params:
             star = "*" if p.required else ""
-            rows.append(Horizontal(Label(f"{p.name}{star} [dim]{p.type}[/]"), ParamInput(p), classes="row"))
+            widget = ParamSelect(p) if p.choices else ParamInput(p)
+            rows.append(Horizontal(Label(f"{p.name}{star}"), widget, classes="row"))
         if not rows:
             rows.append(Label("[dim]No query parameters[/]"))
+        form.remove_class("collapsed")
         form.mount_all(rows)
         if op.read_via_post:
             form.mount(Horizontal(Label("[dim]JSON query body[/]"), Input(placeholder="{}", id="post-body"), classes="row"))
@@ -690,8 +741,8 @@ class Cin7Tui(App):
     def collect_query(self) -> dict[str, object] | None:
         """Typed query from the form, or None (with a notification) if a value is bad."""
         query: dict[str, object] = {}
-        for inp in self.query(ParamInput):
-            raw = inp.value.strip()
+        for inp in self._param_widgets():
+            raw = raw_value(inp)
             p = inp.param
             if not raw:
                 if p.required:
@@ -706,6 +757,10 @@ class Cin7Tui(App):
                 inp.focus()
                 return None
         return query
+
+    def _param_widgets(self) -> list:
+        """Every parameter widget in the form, inputs and dropdowns, in form order."""
+        return [w for w in self.query("#form *") if isinstance(w, (ParamInput, ParamSelect))]
 
     def action_focus_filter(self) -> None:
         self.sidebar_shown = True
@@ -813,10 +868,19 @@ class Cin7Tui(App):
         more = f" of {total}" if total is not None else ""
         clipped = f" (table shows first {MAX_TABLE_ROWS})" if len(self.rows) > MAX_TABLE_ROWS else ""
         calls = self.client.calls if self.client else 0
-        self.set_status(f"{len(self.rows)} rows{more}{clipped} · {seconds:.1f}s · {calls} calls this session · ? help")
+        self.set_status(f"{len(self.rows)} rows{more}{clipped} · {seconds:.1f}s · {calls} calls · f edit filters · ? help")
         self.log_line(f"{op.full_name}: {len(self.rows)} rows{more}")
         self.query_one("#results", TabbedContent).active = "tab-table"
+        self.query_one("#form").add_class("collapsed")
         self.query_one("#table", DataTable).focus()
+
+    def action_toggle_form(self) -> None:
+        form = self.query_one("#form")
+        form.toggle_class("collapsed")
+        if not form.has_class("collapsed"):
+            first = next(iter(self._param_widgets()), None)
+            if first:
+                first.focus()
 
     def _shown_cols(self) -> list[str]:
         return [c for c in self.cols if c not in self.hidden]
@@ -843,7 +907,7 @@ class Cin7Tui(App):
             table.add_column(c + (arrow[self.sort_desc] if c == self.sort_col else ""), key=c)
         table.fixed_columns = rowtools.frozen_columns(cols)
         for i, r in enumerate(self.view[:MAX_TABLE_ROWS]):
-            colour = rowtools.row_style(r)
+            color = rowtools.row_style(r)
             link = rowtools.record_url(self.op, r) if self.op is not None else None
             cells = []
             rid = rowtools.record_id(r)
@@ -852,7 +916,10 @@ class Cin7Tui(App):
                 if n == 0 and rid and rid in self.marked:
                     text = "● " + text
                 text = text if len(text) <= self.cell_width else text[: self.cell_width - 1] + "…"
-                style = Style(color=colour, link=link if n == 0 and link else None, underline=bool(n == 0 and link))
+                is_url = text.startswith(("http://", "https://"))
+                drill = bool(n == 0 and link) or is_url
+                style = Style(color=color, link=(link if n == 0 and link else text if is_url else None),
+                              underline=drill, bold=drill)
                 cells.append(Text(text, style=style))
             table.add_row(*cells, key=str(i))
 
@@ -1017,11 +1084,17 @@ class Cin7Tui(App):
         self._fill_tree(self.query_one("#filter", Input).value)
 
     def _fill_form(self, params: dict[str, str]) -> None:
-        by_name = {inp.param.name.lower(): inp for inp in self.query(ParamInput)}
+        by_name = {w.param.name.lower(): w for w in self._param_widgets()}
         for k, v in params.items():
-            inp = by_name.get(k.lower())
-            if inp is not None:
-                inp.value = str(v)
+            w = by_name.get(k.lower())
+            if w is None:
+                continue
+            if isinstance(w, Select):
+                match = next((c for c in w.param.choices if c.lower() == str(v).lower()), None)
+                if match:
+                    w.value = match
+            else:
+                w.value = str(v)
 
     def _run_when_ready(self, after: dict | None = None) -> None:
         """The form is mounted asynchronously; run once it exists."""
@@ -1049,7 +1122,7 @@ class Cin7Tui(App):
         def done(name: str | None) -> None:
             if not name or self.op is None:
                 return
-            params = {inp.param.name: inp.value for inp in self.query(ParamInput) if inp.value.strip()}
+            params = {w.param.name: raw_value(w) for w in self._param_widgets() if raw_value(w)}
             self.saved[name] = {"op": self.op.full_name, "params": params,
                                 "all_pages": self.query_one("#all-pages", Checkbox).value}
             self._remember()
@@ -1090,7 +1163,7 @@ class Cin7Tui(App):
 
     def _push_history(self, op: spec.Operation) -> None:
         snap = {"op": op, "data": self.data, "rows": self.rows, "cols": self.cols, "when": time.strftime("%H:%M:%S"),
-                "query": {inp.param.name: inp.value for inp in self.query(ParamInput) if inp.value.strip()}}
+                "query": {w.param.name: raw_value(w) for w in self._param_widgets() if raw_value(w)}}
         del self.history[self.hpos + 1 :]
         self.history.append(snap)
         self.history = self.history[-MAX_HISTORY:]
@@ -1156,7 +1229,7 @@ class Cin7Tui(App):
     def _show_print_info(self, pe: printing.PrintEndpoint) -> None:
         self.op = None
         self._set_mode(None)
-        self.query_one("#op-title", Static).update(f"[bold #4fd1c5]🖨 {pe.path}[/]  [dim]{'bulk' if pe.bulk else 'one record'}[/]")
+        self.query_one("#op-title", Static).update(f"[bold #4fd1c5]⎙ {pe.path}[/]  [dim]{'bulk' if pe.bulk else 'one record'}[/]")
         self.query_one("#op-meta", Static).update(f"Lives on: {pe.where or 'unknown'}")
         form = self.query_one("#form", VerticalScroll)
         form.remove_children()

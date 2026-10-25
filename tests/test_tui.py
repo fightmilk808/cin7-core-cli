@@ -37,8 +37,8 @@ async def test_tree_sections_and_main_groups_first(tmp_path):
         app._fill_tree("")
         await pilot.pause()
         heads = [str(h.label) for h in tree.root.children]
-        assert "MAIN" in heads[0] and "Public API" in heads[1] and "INTERNAL" in heads[2]
-        assert "PRINT" in heads[3] and "Reference" in heads[4]
+        assert "MAIN" in heads[0] and "PUBLIC API" in heads[1] and "INTERNAL" in heads[2]
+        assert "PRINT" in heads[3] and "REFERENCE" in heads[4]
         main = [g.data[1] for g in tree.root.children[0].children]
         assert main == ["product", "sale", "stock", "production", "purchase"]
         groups = _groups(tree)
@@ -233,7 +233,8 @@ async def test_sort_hide_search_widths_and_fixed_columns(mock, tmp_path):
         app.action_run()
         await _settle(app, pilot)
         table = app.query_one("#table", DataTable)
-        assert app.cols[:2] == ["CustomerReference", "OrderNumber"] and table.fixed_columns == 2
+        assert app.cols[:3] == ["CustomerReference", "Customer", "OrderNumber"] and table.fixed_columns == 3
+        assert app.cols[-1] == "SaleID", "ids sit at the far right"
         table.move_cursor(row=0, column=0)
         await pilot.press("s")  # asc
         await pilot.pause()
@@ -258,7 +259,7 @@ async def test_sort_hide_search_widths_and_fixed_columns(mock, tmp_path):
         assert app.cell_width == 160
 
 
-async def test_row_colours_and_links():
+async def test_row_colors_and_links():
     from cin7_cli.rowtools import record_id, record_url, row_style
     import datetime as dt
 
@@ -362,14 +363,14 @@ async def test_pin_and_recent_sections(mock, tmp_path):
         await pilot.press("p")
         assert app.pins == ["sale list"]
         heads = [str(h.label) for h in app.query_one("#ops", Tree).root.children]
-        assert "Pinned" in heads[0]
+        assert "PINNED" in heads[0]
         app.action_run()
         await _settle(app, pilot)
         assert app.recent == ["sale list"]
         await pilot.press("p")
         assert app.pins == []
         heads = [str(h.label) for h in app.query_one("#ops", Tree).root.children]
-        assert "Recent" in heads[0]
+        assert "RECENT" in heads[0]
     assert Cin7Tui(export_dir=tmp_path).recent == ["sale list"], "remembered across sessions"
 
 
@@ -540,3 +541,58 @@ async def test_print_section_is_informational(tmp_path):
         await pilot.pause()
         assert app.query_one("#run", Button).disabled
         assert "Sales" in str(app.query_one("#op-meta", Static).render())
+
+
+# --- dropdown filters and bold drill-throughs ----------------------------------------------------
+
+
+async def test_option_filters_are_dropdowns(mock, tmp_path):
+    from textual.widgets import Select
+
+    from cin7_cli.tui import ParamSelect
+
+    mock.routes[("GET", "/saleList")] = (200, {"Total": 1, "Page": 1, "SaleList": SALES[:1]}, {})
+    mock.routes[("GET", "/product")] = (200, {"Total": 0, "Page": 1, "Products": []}, {})
+    app = Cin7Tui(export_dir=tmp_path)
+    async with app.run_test(size=(160, 50)) as pilot:
+        app.select(spec.find("sale", "list"))
+        await pilot.pause()
+        ship = app.query_one("#p-combined-shipping-status", ParamSelect)
+        assert "NOT SHIPPED" in [v for _, v in ship._options if isinstance(v, str)]
+        assert not isinstance(ship.value, str)
+        ship.value = "NOT SHIPPED"
+        _param(app, "search").value = ""
+        app.action_run()
+        await _settle(app, pilot)
+        assert mock.requests[-1]["query"] == {"CombinedShippingStatus": "NOT SHIPPED"}, "blank dropdowns are left out"
+        app.select(spec.find("product", "list"))
+        await pilot.pause()
+        bom = app.query_one("#p-include-bom", ParamSelect)
+        bom.value = "true"
+        app.action_run()
+        await _settle(app, pilot)
+        assert mock.requests[-1]["query"] == {"IncludeBOM": "true"}
+        # saved filters carry dropdown values too
+        app.action_save_filter()
+        await pilot.pause()
+        app.screen.query_one("#name").value = "with bom"
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.saved["with bom"]["params"] == {"IncludeBOM": "true"}
+
+
+async def test_drill_through_and_url_cells_are_bold(mock, tmp_path):
+    rows = [{"SaleID": "00000000-0000-0000-0000-000000000001", "CustomerReference": "#1", "Status": "ORDERED", "Link": "https://x.test/a"}]
+    mock.routes[("GET", "/saleList")] = (200, {"Total": 1, "Page": 1, "SaleList": rows}, {})
+    app = Cin7Tui(export_dir=tmp_path)
+    async with app.run_test(size=(160, 50)) as pilot:
+        app.select(spec.find("sale", "list"))
+        await pilot.pause()
+        app.action_run()
+        await _settle(app, pilot)
+        table = app.query_one("#table", DataTable)
+        first = table.get_row_at(0)[0]
+        assert first.style.bold and first.style.link and "/Sale#" in first.style.link
+        link_cell = table.get_row_at(0)[app.cols.index("Link")]
+        assert link_cell.style.bold and link_cell.style.link == "https://x.test/a"
+        assert not table.get_row_at(0)[app.cols.index("Status")].style.bold

@@ -1,4 +1,4 @@
-"""Pure helpers behind the TUI's table: record links, record ids, status colours, sorting."""
+"""Pure helpers behind the TUI's table: record links, record ids, status colors, sorting."""
 
 from __future__ import annotations
 
@@ -60,7 +60,7 @@ def record_url(op: spec.Operation, row: dict) -> str | None:
     return f"{WEB_ROOT}/{route}#{rid}" if rid else None
 
 
-# --- status colours ------------------------------------------------------------
+# --- status colors ------------------------------------------------------------
 
 STATUS_FIELDS = (
     "Status", "OrderStatus", "CombinedShippingStatus", "CombinedInvoiceStatus", "CombinedPickStatus", "QuoteStatus",
@@ -88,7 +88,7 @@ def row_style(row: dict, today: dt.date | None = None) -> str | None:
     """Rich style for a whole row from its status and due date.
 
     Red: backordered, void, cancelled, overdue and still open. Green: done.
-    Yellow: in progress. Anything else: no colour.
+    Yellow: in progress. Anything else: no color.
     """
     today = today or dt.date.today()
     statuses = [str(row[f]).strip().lower() for f in STATUS_FIELDS if row.get(f)]
@@ -139,12 +139,14 @@ def sort_rows(rows: Iterable[dict], column: str | None, reverse: bool = False) -
 
 
 def frozen_columns(cols: list[str]) -> int:
-    """How many leading columns stay put while the table scrolls sideways."""
-    lead = ("CustomerReference", "OrderNumber", "SKU", "Name")
+    """How many leading columns stay put while the table scrolls sideways: the identity column and the
+    next two most important ones, as many of them as lead the shown columns."""
+    from .output import key_columns
+
+    keys = key_columns(cols)
     n = 0
-    for c, want in zip(cols, lead):
+    for c, want in zip(cols, keys):
         if c != want:
             break
         n += 1
-    # CustomerReference + OrderNumber together are the sale's name; keep both.
-    return min(n, 2) if n else (1 if cols and cols[0] in ("SKU", "Name", "OrderNumber", "Code") else 0)
+    return n

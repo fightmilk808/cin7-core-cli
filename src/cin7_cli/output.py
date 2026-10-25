@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import re
 
 
 def rows_of(data: object, list_key: str | None) -> list[dict]:
@@ -33,10 +34,41 @@ def cell(v: object) -> str:
 # A sale is named by its customer reference (the Shopify order number), so that
 # column leads, with the SO- number after it.
 LEAD_COLUMNS = ("CustomerReference", "OrderNumber")
+_GUID = re.compile(r"^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$")
+_ID_NAME = re.compile(r"(^|[a-z])(ID|Id|Guid|GUID)s?$|^(ID|Id)$")
+
+
+def is_id_column(name: str, rows: list[dict]) -> bool:
+    """An id column: named like one, or holding GUIDs. These go to the far right."""
+    if name in LEAD_COLUMNS or name in IDENTITY or name in KEY_PRIORITY:
+        return False
+    if _ID_NAME.search(name):
+        return True
+    sample = [r.get(name) for r in rows[:50] if r.get(name)]
+    return bool(sample) and all(isinstance(v, str) and _GUID.match(v) for v in sample)
+
+
+# The columns that say what a row *is*. The identity column leads (a sale by its customer reference, a product
+# by SKU); the next two most important ones follow and stay locked in the TUI while the table scrolls.
+IDENTITY = ("CustomerReference", "SKU", "ProductSKU", "OrderNumber", "Code", "Name", "Title")
+KEY_PRIORITY = (
+    "SKU", "ProductSKU", "Code", "Name", "Customer", "CustomerName", "Supplier", "SupplierName", "Product",
+    "ProductName", "OrderNumber", "Location", "LocationName", "Status",
+)
+
+
+def key_columns(cols: list[str]) -> list[str]:
+    """Identity column plus the next two most important ones, in that order (fewer when the table has fewer)."""
+    by_lower = {c.lower(): c for c in cols}
+    identity = next((by_lower[n.lower()] for n in IDENTITY if n.lower() in by_lower), None)
+    if identity is None:
+        return []
+    picks = [by_lower[n.lower()] for n in KEY_PRIORITY if n.lower() in by_lower and by_lower[n.lower()] != identity]
+    return [identity] + picks[:2]
 
 
 def columns(rows: list[dict], fields: list[str] | None = None) -> list[str]:
-    """Columns in first-seen order, lead columns first; `fields` overrides."""
+    """Columns in first-seen order: key columns first, ids pushed to the far right; `fields` overrides."""
     if fields:
         return fields
     cols: list[str] = []
@@ -44,8 +76,10 @@ def columns(rows: list[dict], fields: list[str] | None = None) -> list[str]:
         for k in r:
             if k not in cols:
                 cols.append(k)
-    lead = [c for c in LEAD_COLUMNS if c in cols]
-    return lead + [c for c in cols if c not in lead]
+    lead = key_columns(cols)
+    rest = [c for c in cols if c not in lead]
+    ids = [c for c in rest if is_id_column(c, rows)]
+    return lead + [c for c in rest if c not in ids] + ids
 
 
 def render(data: object, fmt: str = "json", list_key: str | None = None, fields: list[str] | None = None) -> str:

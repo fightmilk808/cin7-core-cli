@@ -48,12 +48,13 @@ A [Textual](https://textual.textualize.io) terminal UI over the same spec, clien
 | **Mode bar** | Always on. Green `WRITES OFF · reads only · API key` for public calls; **red** `INTERNAL · signed-in browser session, acting as you` when the selected operation uses your Cin7 login; amber for reference-only. |
 | **Sidebar** | `ctrl+b` hide/show · `[` `]` narrower/wider · `c` compact (drops counts) · `/` filter. Width and compact are remembered. |
 | **Writes** | Hidden by default. `m` shows writes and never-sent endpoints (✎ / ⛔) so you can read their shapes. Seeing them never sends them. |
-| **Table** | Click a header or `s` to sort (asc, desc, off; numbers sort as numbers) · `h` hide column · `H` show all · `w` cell width 24/60/160 · lead columns (`CustomerReference`, `OrderNumber`) stay put while it scrolls · `ctrl+f` search the results as you type. |
-| **Colours** | Whole row: red = backordered, void, cancelled or overdue and still open; yellow = in progress; green = done. |
-| **Links** | The first column of a row is a clickable link when Cin7 has a page for it (`/Sale#<id>`, `/Product#…`, `/ProductionOrder#…`, `/MRP#…`; terminals with OSC 8 links). `o` opens it in the browser, `u` copies it. |
+| **Table** | Click a header or `s` to sort (asc, desc, off; numbers sort as numbers) · `h` hide column · `H` show all · `w` cell width 24/60/160 · the identity column (customer reference, SKU, order number or name) plus the next two most important (customer, supplier, SKU, status…) lead and stay locked while it scrolls; every id column sits at the far right · `ctrl+f` search the results as you type. |
+| **Filters** | Two compact columns. Parameters with a fixed set of values are **dropdowns** (shipping and pick statuses, every true/false flag such as `IncludeBOM` or `IsActive`); the rest are text. Leave a dropdown on "any" to omit it. The form hides itself after a run: `f` brings it back. Choices come from the API Blueprint's value lists, so internal filters like a BOM type stay text until a value list is known. |
+| **Colors** | Whole row: red = backordered, void, cancelled or overdue and still open; yellow = in progress; green = done. |
+| **Links** | The first column of a row is a **bold**, clickable link when Cin7 has a page for it (`/Sale#<id>`, `/Product#…`, `/ProductionOrder#…`, `/MRP#…`; terminals with OSC 8 links). `o` opens it in the browser, `u` copies it. |
 | **Copy** | `y` cell · `Y` row as JSON · `i` the record's id · `u` link. |
 | **Summary tab** | Count rows by any column (Status, Customer, Supplier, …) with Σ totals for numeric columns, over the rows the search leaves. |
-| **Record / JSON tabs** | Collapsible trees coloured by type; nested lines (sale lines, BOM components) open on demand. Enter on a table row opens it in Record. |
+| **Record / JSON tabs** | Collapsible trees colored by type; nested lines (sale lines, BOM components) open on demand. Enter on a table row opens it in Record. |
 | **Quick views** | `1` open production orders (completed hidden, soonest due first) · `2` sales waiting on stock · `3` latest MRP run (internal) · `4` sales awaiting shipment. Each fills the form, runs it and sorts it. Status values come from the Blueprint's lists; check them against your data. |
 | **Pinned · Recent** | `p` pins the selected operation. Pinned and recently run operations sit at the top of the sidebar. |
 | **Saved filters** | `ctrl+s` saves the form under a name ("this week's sales"); `ctrl+o` loads it (Enter) or deletes it (Delete). |
@@ -63,7 +64,7 @@ A [Textual](https://textual.textualize.io) terminal UI over the same spec, clien
 
 Record links come from the route names in the rebuild map's `pages.csv`; open one to check it before relying on it.
 
-![cin7 tui: sales sorted, coloured by status, with the mode bar and main groups (sample data from the test mock)](docs/tui.svg)
+![cin7 tui: sales sorted, colored by status, with the mode bar and main groups (sample data from the test mock)](docs/tui.svg)
 
 **Still read-only, full stop.** Write operations can be listed (`m`) so their request shapes can be read, but there is
 no way to send one from the TUI.

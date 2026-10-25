@@ -18,6 +18,7 @@ class Param:
     flag: str
     type: str = "string"
     required: bool = False
+    choices: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -80,7 +81,8 @@ def load() -> dict:
     ops = []
     for c in raw["commands"]:
         params = tuple(
-            Param(name=n, flag=m["flag"], type=m.get("type", "string"), required=bool(m.get("required")))
+            Param(name=n, flag=m["flag"], type=m.get("type", "string"), required=bool(m.get("required")),
+                  choices=tuple(m.get("choices") or ()))
             for n, m in c["params"].items()
         )
         ops.append(

@@ -153,7 +153,7 @@ def test_table_and_csv_output(mock, capsys):
     rows = list(csv.reader(io.StringIO(out)))
     assert rows == [["CustomerReference", "SaleID", "Lines"], ["#1", "a", "[2]"], ["#2", "b", "[0]"]]
     code, out, _ = run(capsys, "sale", "list", "-o", "table")
-    assert out.splitlines()[0].split() == ["CustomerReference", "SaleID", "Lines"]
+    assert out.splitlines()[0].split() == ["CustomerReference", "Lines", "SaleID"]
 
 
 def test_429_backs_off_and_retries(mock, capsys):
@@ -526,3 +526,28 @@ def test_print_send_refuses_unmapped_and_missing_template(web, capsys):
     assert code == 2 and "template" in err
     code, _, err = run(capsys, "print", "send", "/Sale/Print", "--ids", "a,b", "--template", "T", "--dry-run")
     assert code == 2 and "one record" in err
+
+
+def test_id_columns_go_to_the_far_right():
+    from cin7_cli import output
+
+    rows = [{"SaleID": "11111111-2222-3333-4444-555555555555", "CustomerReference": "#1", "CustomerID": "99999999-2222-3333-4444-555555555555",
+             "OrderNumber": "SO-1", "Customer": "A", "Status": "SHIPPED", "LocationGuid": "x", "Ref": "22222222-2222-3333-4444-555555555555",
+             "InvoiceAmount": 5}]
+    assert output.columns(rows) == ["CustomerReference", "Customer", "OrderNumber", "Status", "InvoiceAmount", "SaleID", "CustomerID", "LocationGuid", "Ref"]
+    assert output.columns(rows, ["SaleID", "Status"]) == ["SaleID", "Status"], "--fields keeps your order"
+    assert output.columns([{"ID": "a", "Name": "n", "Description": "d"}]) == ["Name", "Description", "ID"]
+
+
+def test_key_columns_per_table():
+    from cin7_cli import output, rowtools
+
+    product = ["ID", "Description", "Brand", "Name", "SKU", "Status", "Category", "Price"]
+    assert output.key_columns(product) == ["SKU", "Name", "Status"], "SKU leads; the next two most important follow"
+    assert rowtools.frozen_columns(output.columns([dict.fromkeys(product, "x")])) == 3
+    po = ["ID", "OrderNumber", "Supplier", "OrderDate", "Status", "Total"]
+    assert output.key_columns(po) == ["OrderNumber", "Supplier", "Status"]
+    sale = ["SaleID", "OrderNumber", "CustomerReference", "Customer", "Status"]
+    assert output.key_columns(sale) == ["CustomerReference", "Customer", "OrderNumber"]
+    assert output.key_columns(["Foo", "Bar"]) == [] and rowtools.frozen_columns(["Foo", "Bar"]) == 0
+    assert rowtools.frozen_columns(["Customer", "SKU", "Name"]) == 0, "hiding the lead column un-freezes rather than misleads"

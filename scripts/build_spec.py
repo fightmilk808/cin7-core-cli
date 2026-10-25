@@ -199,6 +199,8 @@ def build_web(rebuild: Path) -> list[dict]:
             # Spellings differ across pages (CustomerID / customerID); one flag each.
             if p != "_dc" and flag_name(p) not in {m["flag"] for m in params.values()}:
                 params[p] = {"type": "string", "flag": flag_name(p)}
+                if BOOL_NAME.match(p):
+                    params[p].update(type="bool", choices=["true", "false"])
         root = r["reader_root"] or None
         paged = bool(root) and "REST" in r["methods"]
         if paged:
@@ -300,6 +302,26 @@ def build_prints(rebuild: Path) -> list[dict]:
     return out
 
 
+NOT_CHOICES = {"POST", "PUT", "GET", "DELETE"}
+BOOL_NAME = re.compile(r"^(is|include|only|has|deprecated|active|allow|show|hide)[A-Za-z0-9]*$", re.I)
+
+
+def _norm(name: str) -> str:
+    return re.sub(r"ing", "", name.lower())
+
+
+def group_choices(shapes: dict, group: str) -> dict[str, list[str]]:
+    """Enumerated values per field name for a group, from the Blueprint's field tables."""
+    out: dict[str, list[str]] = {}
+    for t in shapes["groups"][group]["tables"]:
+        for f in t["fields"]:
+            vals = [v for v in (f.get("values") or []) if v not in NOT_CHOICES and v != "Not used"]
+            if vals:
+                merged = out.setdefault(_norm(f["name"]), [])
+                merged += [v for v in dict.fromkeys(vals) if v not in merged]
+    return out
+
+
 def build(rebuild: Path) -> dict:
     shapes = json.loads((rebuild / "data" / "public-api-shapes.json").read_text())
     rows = list(csv.DictReader((rebuild / "data" / "public-api.csv").open()))
@@ -335,6 +357,12 @@ def build(rebuild: Path) -> dict:
             if p.get("required"):
                 params[p["name"]]["required"] = True
 
+        choices = group_choices(shapes, group)
+        for pname, meta in params.items():
+            if meta["type"] == "bool":
+                meta["choices"] = ["true", "false"]
+            elif _norm(pname) in choices:
+                meta["choices"] = choices[_norm(pname)]
         key = list_key(row["path"], op.get("response")) if row["method"] == "GET" else None
         has_required = any(m.get("required") for m in params.values())
         paged = key is not None and "page" in lower
