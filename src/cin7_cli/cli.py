@@ -67,7 +67,7 @@ def _common(p: argparse.ArgumentParser, write: bool, post_read: bool = False) ->
     g.add_argument("-q", "--param", type=_kv, action="append", default=[], metavar="KEY=VALUE", help="extra query parameter")
     p.add_argument("--save-dir", default=".", help="folder for file downloads (web download/export endpoints)")
     if post_read:
-        p.add_argument("--body", help="JSON query body for this POST read (default {}): inline, @file.json, or -")
+        p.add_argument("--body", help="query fields for this POST read as JSON, sent form-encoded like the web app (e.g. {\"MrpID\": \"…\", \"LoadProducts\": true}): inline, @file.json, or -")
     if write:
         w = p.add_argument_group("write (off by default)")
         w.add_argument("--allow-write", action="store_true", help="permit this write after interactive confirmation")

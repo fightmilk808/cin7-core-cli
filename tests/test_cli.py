@@ -437,8 +437,11 @@ def test_internal_writes_and_reference_only_never_send(web, capsys):
 
 def test_internal_post_read_sends_body(web, capsys):
     web.routes[("POST", "/api/MRP_SupplySuggestions")] = (200, {"root": [], "total": 0}, {})
-    code, _, _ = run(capsys, "web-mrp", "mrp-supply-suggestions", "--body", '{"MrpID": "m1"}')
-    assert code == 0 and web.requests[0]["method"] == "POST" and web.requests[0]["body"] == {"MrpID": "m1"}
+    code, _, _ = run(capsys, "web-mrp", "mrp-supply-suggestions", "--body", '{"MrpID": "m1", "LoadProducts": true, "limit": 10}')
+    assert code == 0 and web.requests[0]["method"] == "POST"
+    # form-encoded like the web app's own call (captured in a real MRP session)
+    assert web.requests[0]["body"] == {"MrpID": "m1", "LoadProducts": "true", "limit": "10"}
+    assert web.requests[0]["headers"]["x-requested-with"] == "XMLHttpRequest"
 
 
 def test_internal_all_pages_uses_ext_paging(web, capsys):

@@ -141,7 +141,8 @@ class WebSession:
 
     def headers(self) -> dict[str, str]:
         """What the web app's own XHR calls send."""
-        return {"Cookie": self.cookie, "X-Requested-With": "XMLHttpRequest"}
+        origin = "https://inventory.dearsystems.com"
+        return {"Cookie": self.cookie, "X-Requested-With": "XMLHttpRequest", "Origin": origin, "Referer": origin + "/"}
 
     def redact(self, text: str) -> str:
         """Mask the cookie and each of its values."""

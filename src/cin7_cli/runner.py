@@ -52,8 +52,11 @@ def make_client(op: spec.Operation, rate: float, timeout: float = 60, verbose: b
 
 def request_for(op: spec.Operation, query: dict, body: object = None) -> Request:
     """The request `op` would send (for --dry-run, confirmation and sending)."""
-    if op.read_via_post and body is None:
-        body = {}
+    if op.read_via_post:
+        # The web app's POST reads are form-encoded, not JSON (seen in a real MRP session:
+        # MrpID=…&Search=&LoadProducts=true&page=1&start=0&limit=10).
+        fields = {k: ("true" if v is True else "false" if v is False else str(v)) for k, v in (body or {}).items()}
+        return Request("POST", build_url(op.path, query, root_for(op)), form=fields)
     return Request(op.method, build_url(op.path, query, root_for(op)), body)
 
 
