@@ -105,10 +105,10 @@ def test_webhook_events(capsys):
 
 
 def test_get_sends_auth_headers_and_query(mock, capsys):
-    mock.routes[("GET", "/sale")] = (200, {"ID": SALE_ID, "Customer": "Acme", "CustomerReference": "#25147"}, {})
+    mock.routes[("GET", "/sale")] = (200, {"ID": SALE_ID, "Customer": "Acme", "CustomerReference": "#10001"}, {})
     code, out, err = run(capsys, "sale", "get", "--id", SALE_ID)
     assert code == 0
-    assert json.loads(out)["CustomerReference"] == "#25147"
+    assert json.loads(out)["CustomerReference"] == "#10001"
     req = mock.requests[0]
     assert req["query"] == {"ID": SALE_ID}
     assert req["headers"]["api-auth-accountid"] == ACCOUNT
@@ -560,13 +560,13 @@ def test_key_columns_per_table():
 
 def test_text_is_resolved_to_an_id(mock, capsys):
     mock.routes[("GET", "/saleList")] = (200, {"Total": 1, "Page": 1, "SaleList": [
-        {"SaleID": SALE_ID, "CustomerReference": "#25147", "OrderNumber": "SO-9", "Customer": "Acme"}]}, {})
+        {"SaleID": SALE_ID, "CustomerReference": "#10001", "OrderNumber": "SO-9", "Customer": "Acme"}]}, {})
     mock.routes[("GET", "/sale")] = (200, {"ID": SALE_ID, "Customer": "Acme"}, {})
-    code, out, err = run(capsys, "sale", "get", "--id", "#25147")
+    code, out, err = run(capsys, "sale", "get", "--id", "#10001")
     assert code == 0 and json.loads(out)["ID"] == SALE_ID
-    assert mock.requests[0]["path"] == "/saleList" and mock.requests[0]["query"] == {"Search": "#25147", "Limit": "25"}
+    assert mock.requests[0]["path"] == "/saleList" and mock.requests[0]["query"] == {"Search": "#10001", "Limit": "25"}
     assert mock.requests[1]["path"] == "/sale" and mock.requests[1]["query"] == {"ID": SALE_ID}
-    assert "#25147" in err and "Acme" in err, "says what the text resolved to"
+    assert "#10001" in err and "Acme" in err, "says what the text resolved to"
 
 
 def test_product_lookup_tries_sku_then_name(mock, capsys):
@@ -614,7 +614,7 @@ def test_no_match_and_unresolvable(mock, capsys):
 
 def test_guid_passes_through_and_dry_run_never_looks_up(mock, capsys):
     run(capsys, "sale", "get", "--id", SALE_ID, "--dry-run")
-    run(capsys, "sale", "get", "--id", "#25147", "--dry-run")
+    run(capsys, "sale", "get", "--id", "#10001", "--dry-run")
     assert mock.requests == []
 
 
@@ -627,7 +627,7 @@ def test_dates_show_without_times():
     assert output.clean_date("2026-10-25") == "Oct 25, 2026"
     assert output.clean_date("2026-10-25T00:00:00", iso=True) == "2026-10-25"
     assert output.clean_date("0001-01-01T00:00:00") == "", "Cin7's empty date"
-    for keep in ("SO-18200", "#25147", "2026-13-40x", "12:30", "Total: 2026-10-25"):
+    for keep in ("SO-18200", "#10001", "2026-13-40x", "12:30", "Total: 2026-10-25"):
         assert output.clean_date(keep) == keep
     assert output.cell(["2026-10-25"]) == "[1]" and output.cell(5) == "5"
 
