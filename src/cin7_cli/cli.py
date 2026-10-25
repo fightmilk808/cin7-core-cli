@@ -88,7 +88,7 @@ def _op_parser(sub, op: spec.Operation) -> None:
             metavar=TYPE_HINT.get(prm.type, "TEXT"),
             required=prm.required,
             help=f"{prm.name} ({prm.type})" + (" required" if prm.required else "")
-            + (f" · one of: {', '.join(prm.choices)}" if prm.choices and prm.type != "bool" else "")
+            + (f" · any of (comma-separate for several): {', '.join(prm.choices)}" if prm.choices and prm.type != "bool" else "")
             + (f" · or look up by {r.hint}" if (r := resolve.resolver_for(op, prm)) else ""),
         )
     if op.paged:
@@ -403,6 +403,10 @@ def _resolve_ids(args, op: spec.Operation, query: dict) -> int | None:
 
 def _run(args, op: spec.Operation, method: str, path: str) -> int:
     query = _query(args, op if args.command != "raw" else None)
+    for prm in op.params:  # enumerated filters take several values: "NOT SHIPPED,PARTIALLY SHIPPED"
+        v = query.get(prm.name)
+        if prm.choices and prm.type != "bool" and isinstance(v, str) and "," in v:
+            query[prm.name] = [x.strip() for x in v.split(",") if x.strip()]
     if not args.dry_run:
         bad = _resolve_ids(args, op, query)
         if bad is not None:
@@ -416,9 +420,14 @@ def _run(args, op: spec.Operation, method: str, path: str) -> int:
     except runner.NotRunnable as exc:
         print(f"cin7: {exc}", file=sys.stderr)
         return EXIT_USAGE
-    req = runner.request_for(op, query, body)
+    try:
+        reqs = [runner.request_for(op, q, body) for q in runner.expand(query)]
+    except ValueError as exc:
+        print(f"cin7: {exc}", file=sys.stderr)
+        return EXIT_USAGE
+    req = reqs[0]
     if args.dry_run:
-        print(req.describe())
+        print("\n".join(r.describe() for r in reqs))
         if op.is_write:
             print("(write: would need --allow-write and a typed confirmation)", file=sys.stderr)
         return EXIT_OK
@@ -434,7 +443,7 @@ def _run(args, op: spec.Operation, method: str, path: str) -> int:
         return EXIT_AUTH
     fields = [f.strip() for f in args.fields.split(",")] if args.fields else None
     try:
-        data = runner.fetch(
+        data = runner.fetch_many(
             client, op, query, body, all_pages=getattr(args, "all_pages", False), max_pages=getattr(args, "max_pages", None)
         )
     except ApiError as exc:

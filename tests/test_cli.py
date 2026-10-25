@@ -664,3 +664,21 @@ def test_table_shows_dollars_csv_does_not(mock, capsys):
     assert "$4,812.50" in out and "3" in out
     _, out, _ = run(capsys, "sale", "list", "-o", "csv")
     assert "4812.5" in out and "$" not in out
+
+
+def test_multi_value_filters_make_one_call_each_and_merge(mock, capsys):
+    def rows(req):
+        st = req["query"]["CombinedShippingStatus"]
+        return 200, {"Total": 2, "Page": 1, "SaleList": [{"SaleID": f"id-{st}", "CustomerReference": st}, {"SaleID": "dup", "CustomerReference": "both"}]}, {}
+
+    mock.routes[("GET", "/saleList")] = rows
+    code, out, _ = run(capsys, "sale", "list", "--combined-shipping-status", "NOT SHIPPED,PARTIALLY SHIPPED")
+    data = json.loads(out)
+    assert code == 0 and [r["query"]["CombinedShippingStatus"] for r in mock.requests] == ["NOT SHIPPED", "PARTIALLY SHIPPED"]
+    assert len(data["SaleList"]) == 3 and data["Total"] == 3 and data["Calls"] == 2
+
+
+def test_too_many_combinations_refused(mock, capsys):
+    vals = ",".join(["VOIDED", "NOT AVAILABLE", "PICKED", "PICKING", "NOT PICKED", "PARTIALLY PICKED"])
+    code, _, err = run(capsys, "sale", "list", "--combined-pick-status", vals, "--combined-pack-status", "VOIDED,NOT AVAILABLE,PACKED")
+    assert code == 2 and "too many" in err and mock.requests == []

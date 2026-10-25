@@ -7,6 +7,7 @@ ones the map marks as reads are ever sent: there is no write path for them.
 
 from __future__ import annotations
 
+import json
 import os
 
 from . import auth, paging, spec
@@ -113,3 +114,49 @@ def save_file(result: tuple, op: spec.Operation, directory) -> str:
     path = Path(directory) / name
     path.write_bytes(data)
     return str(path)
+
+
+MAX_COMBOS = 12
+
+
+def expand(query: dict) -> list[dict]:
+    """One query per combination of the multi-value parameters (a list value means "any of these")."""
+    multi = {k: list(v) for k, v in query.items() if isinstance(v, (list, tuple))}
+    plain = {k: v for k, v in query.items() if k not in multi}
+    combos = [{}]
+    for k, vals in multi.items():
+        combos = [{**c, k: v} for c in combos for v in vals]
+    if len(combos) > MAX_COMBOS:
+        raise ValueError(f"{len(combos)} combinations is too many (max {MAX_COMBOS}): choose fewer values")
+    return [{**plain, **c} for c in combos]
+
+
+def fetch_many(client, op: spec.Operation, query: dict, body: object = None, **kw) -> object:
+    """`fetch`, once per combination of multi-value parameters, rows merged and de-duplicated.
+
+    Cin7's filters take one value each, so "any of A, B" is one call per value. Every call goes
+    through the same rate limiter.
+    """
+    queries = expand(query)
+    if len(queries) == 1:
+        return fetch(client, op, queries[0], body, **kw)
+    merged: dict | None = None
+    seen: set[str] = set()
+    for q in queries:
+        data = fetch(client, op, q, body, **kw)
+        key = op.list_key
+        if not (isinstance(data, dict) and key and isinstance(data.get(key), list)):
+            return data
+        if merged is None:
+            merged = {**data, key: []}
+        for row in data[key]:
+            ident = json.dumps(row, sort_keys=True, default=str)
+            if ident not in seen:
+                seen.add(ident)
+                merged[key].append(row)
+    assert merged is not None
+    for total in ("Total", "total"):
+        if total in merged:
+            merged[total] = len(merged[op.list_key])
+    merged["Calls"] = len(queries)
+    return merged

@@ -38,6 +38,7 @@ from textual.widgets import (
     OptionList,
     RichLog,
     Select,
+    SelectionList,
     Static,
     TabbedContent,
     TabPane,
@@ -148,6 +149,64 @@ class PickScreen(ModalScreen):
 
     def action_cancel(self) -> None:
         self.dismiss(None)
+
+
+class MultiScreen(ModalScreen):
+    """Tick several values (Space toggles, Enter accepts). Dismisses with the chosen list, or None."""
+
+    BINDINGS = [Binding("escape", "cancel", "Cancel"), Binding("enter", "accept", "OK", priority=True), Binding("ctrl+a", "all", "All"),
+                Binding("ctrl+n", "none", "None")]
+    DEFAULT_CSS = """
+    MultiScreen { align: center middle; }
+    MultiScreen > Vertical { width: 56; height: auto; max-height: 24; border: round $accent; padding: 1 2; background: $surface; }
+    """
+
+    def __init__(self, title: str, choices: tuple[str, ...], chosen: list[str]):
+        super().__init__()
+        self.title_text, self.choices, self.chosen = title, choices, set(chosen)
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label(f"[bold]{self.title_text}[/]  [dim]Space ticks · Enter accepts · ctrl+a all · ctrl+n none · Esc cancels[/]")
+            yield SelectionList(*[(c, c, c in self.chosen) for c in self.choices], id="multi")
+
+    def on_mount(self) -> None:
+        self.query_one("#multi", SelectionList).focus()
+
+    def action_accept(self) -> None:
+        self.dismiss(list(self.query_one("#multi", SelectionList).selected))
+
+    def action_all(self) -> None:
+        self.query_one("#multi", SelectionList).select_all()
+
+    def action_none(self) -> None:
+        self.query_one("#multi", SelectionList).deselect_all()
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class ParamMulti(Button):
+    """A filter with a fixed set of values where any number can be ticked (one call per value, rows merged)."""
+
+    def __init__(self, param: spec.Param):
+        super().__init__("any", id=f"p-{param.flag}", classes="multi")
+        self.param = param
+        self.values: list[str] = []
+
+    def set_values(self, values: list[str]) -> None:
+        order = {c: i for i, c in enumerate(self.param.choices)}
+        self.values = sorted(dict.fromkeys(values), key=lambda v: order.get(v, 99))
+        self.label = ", ".join(self.values) if self.values else "any"
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        event.stop()
+
+        def done(chosen: list[str] | None) -> None:
+            if chosen is not None:
+                self.set_values(chosen)
+
+        self.app.push_screen(MultiScreen(self.param.name, self.param.choices, self.values), done)
 
 
 class HelpScreen(ModalScreen):
@@ -272,6 +331,8 @@ class ParamSelect(Select):
 
 def raw_value(widget) -> str:
     """The text a parameter widget holds: blank when a dropdown is unset."""
+    if isinstance(widget, ParamMulti):
+        return "|".join(widget.values)
     if isinstance(widget, Select):
         # Unset is a NoSelection sentinel (Select.NULL / BLANK, by Textual version), never a str.
         return widget.value if isinstance(widget.value, str) else ""
@@ -354,6 +415,7 @@ class Cin7Tui(App):
     .row Label { width: 24; color: $text-muted; }
     .row Input { width: 1fr; height: 1; border: none; padding: 0 1; background: $boost; }
     .row Input:focus { background: $primary 30%; }
+    .row Button.multi { width: 1fr; height: 1; min-width: 8; border: none; padding: 0 1; background: $boost; text-align: left; content-align: left middle; }
     .row Select { width: 1fr; height: 1; }
     .row Select > SelectCurrent { border: none; height: 1; padding: 0 1; background: $boost; }
     .row Select:focus > SelectCurrent { background: $primary 30%; }
@@ -719,7 +781,7 @@ class Cin7Tui(App):
         for p in op.params:
             star = "*" if p.required else ""
             r = resolve.resolver_for(op, p)
-            widget = ParamSelect(p) if p.choices else ParamInput(p, find=r.hint if r else "")
+            widget = (ParamSelect(p) if p.type == "bool" else ParamMulti(p)) if p.choices else ParamInput(p, find=r.hint if r else "")
             rows.append(Horizontal(Label(f"{p.name}{star}"), widget, classes="row"))
         if not rows:
             rows.append(Label("[dim]No query parameters[/]"))
@@ -760,6 +822,9 @@ class Cin7Tui(App):
                     inp.focus()
                     return None
                 continue
+            if isinstance(inp, ParamMulti):
+                query[p.name] = list(inp.values) if len(inp.values) > 1 else inp.values[0]
+                continue
             try:
                 query[p.name] = TYPES.get(p.type, str)(raw)
             except (ValueError, argparse.ArgumentTypeError) as exc:
@@ -770,7 +835,7 @@ class Cin7Tui(App):
 
     def _param_widgets(self) -> list:
         """Every parameter widget in the form, inputs and dropdowns, in form order."""
-        return [w for w in self.query("#form *") if isinstance(w, (ParamInput, ParamSelect))]
+        return [w for w in self.query("#form *") if isinstance(w, (ParamInput, ParamSelect, ParamMulti))]
 
     def action_focus_filter(self) -> None:
         self.sidebar_shown = True
@@ -864,8 +929,9 @@ class Cin7Tui(App):
         started = time.monotonic()
         try:
             client = self._client(op)
-            self.call_from_thread(self.log_line, f"{op.method} {runner.request_for(op, query, body).url}")
-            data = runner.fetch(
+            for q in runner.expand(query):
+                self.call_from_thread(self.log_line, f"{op.method} {runner.request_for(op, q, body).url}")
+            data = runner.fetch_many(
                 client, op, query, body, all_pages=all_pages, progress=False,
                 on_page=lambda p: self.call_from_thread(self.set_status, f"Fetching page {p}…"),
             )
@@ -1151,7 +1217,10 @@ class Cin7Tui(App):
             w = by_name.get(k.lower())
             if w is None:
                 continue
-            if isinstance(w, Select):
+            if isinstance(w, ParamMulti):
+                picks = [str(x) for x in (v if isinstance(v, list) else str(v).split("|")) if str(x)]
+                w.set_values([c for c in w.param.choices for x in picks if c.lower() == x.lower()])
+            elif isinstance(w, Select):
                 match = next((c for c in w.param.choices if c.lower() == str(v).lower()), None)
                 if match:
                     w.value = match

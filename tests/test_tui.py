@@ -547,38 +547,55 @@ async def test_print_section_is_informational(tmp_path):
 
 
 async def test_option_filters_are_dropdowns(mock, tmp_path):
-    from textual.widgets import Select
+    from textual.widgets import SelectionList
 
-    from cin7_cli.tui import ParamSelect
+    from cin7_cli.tui import MultiScreen, ParamMulti, ParamSelect
 
-    mock.routes[("GET", "/saleList")] = (200, {"Total": 1, "Page": 1, "SaleList": SALES[:1]}, {})
+    mock.routes[("GET", "/saleList")] = lambda req: (200, {"Total": 1, "Page": 1, "SaleList": [
+        {"SaleID": "a" * 8 + "-0000-0000-0000-000000000000", "CustomerReference": "#1", "Status": req["query"].get("CombinedShippingStatus", "")},
+        {"SaleID": "b" * 8 + "-0000-0000-0000-000000000000", "CustomerReference": "#shared", "Status": "same"},
+    ]}, {})
     mock.routes[("GET", "/product")] = (200, {"Total": 0, "Page": 1, "Products": []}, {})
     app = Cin7Tui(export_dir=tmp_path)
     async with app.run_test(size=(160, 50)) as pilot:
         app.select(spec.find("sale", "list"))
         await pilot.pause()
-        ship = app.query_one("#p-combined-shipping-status", ParamSelect)
-        assert "NOT SHIPPED" in [v for _, v in ship._options if isinstance(v, str)]
-        assert not isinstance(ship.value, str)
-        ship.value = "NOT SHIPPED"
-        _param(app, "search").value = ""
+        ship = app.query_one("#p-combined-shipping-status", ParamMulti)
+        assert str(ship.label) == "any" and ship.values == []
+        ship.press()
+        await pilot.pause()
+        assert isinstance(app.screen, MultiScreen)
+        sel = app.screen.query_one(SelectionList)
+        sel.select("PARTIALLY SHIPPED")
+        sel.select("NOT SHIPPED")
+        await pilot.press("enter")
+        await pilot.pause()
+        assert ship.values == ["NOT SHIPPED", "PARTIALLY SHIPPED"] or set(ship.values) == {"NOT SHIPPED", "PARTIALLY SHIPPED"}
+        assert "NOT SHIPPED" in str(ship.label)
         app.action_run()
         await _settle(app, pilot)
-        assert mock.requests[-1]["query"] == {"CombinedShippingStatus": "NOT SHIPPED"}, "blank dropdowns are left out"
+        sent = [r["query"].get("CombinedShippingStatus") for r in mock.requests]
+        assert sorted(sent) == ["NOT SHIPPED", "PARTIALLY SHIPPED"], "one call per ticked value"
+        assert len(app.rows) == 3, "rows merged; the row both calls returned appears once"
+        # bool flags stay a single true/false dropdown
         app.select(spec.find("product", "list"))
         await pilot.pause()
         bom = app.query_one("#p-include-bom", ParamSelect)
         bom.value = "true"
+        mock.requests.clear()
         app.action_run()
         await _settle(app, pilot)
         assert mock.requests[-1]["query"] == {"IncludeBOM": "true"}
-        # saved filters carry dropdown values too
+        # saved filters carry the ticks
+        app.select(spec.find("sale", "list"))
+        await pilot.pause()
+        app._fill_form({"CombinedShippingStatus": "NOT SHIPPED|PARTIALLY SHIPPED"})
         app.action_save_filter()
         await pilot.pause()
-        app.screen.query_one("#name").value = "with bom"
+        app.screen.query_one("#name").value = "to ship"
         await pilot.press("enter")
         await pilot.pause()
-        assert app.saved["with bom"]["params"] == {"IncludeBOM": "true"}
+        assert app.saved["to ship"]["params"] == {"CombinedShippingStatus": "NOT SHIPPED|PARTIALLY SHIPPED"}
 
 
 async def test_drill_through_and_url_cells_are_bold(mock, tmp_path):
