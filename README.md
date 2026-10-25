@@ -62,6 +62,14 @@ export CIN7_ACCOUNT_ID='op://<vault>/<item>/account-id'
 export CIN7_APP_KEY='op://<vault>/<item>/application-key'
 ```
 
+Each `cin7` run resolves `op://` references with `op read`, which can mean a 1Password approval per call. Wrap a
+session in `op run` instead, so 1Password resolves them once:
+
+```bash
+op run -- cin7 tui
+op run -- sh -c 'cin7 me get; cin7 product list --limit 1'
+```
+
 The values are never written to disk, never printed, and are masked (`***`) if Cin7 ever echoes them back in an
 error. `.env.example` lists every variable; keep real values out of the repo.
 

@@ -332,3 +332,12 @@ def test_spec_matches_rebuild_repo_when_present():
     mod_spec.loader.exec_module(mod)
     committed = json.loads((root / "src" / "cin7_cli" / "spec.json").read_text())
     assert mod.build(rebuild)["commands"] == committed["commands"]
+
+
+def test_detail_record_with_inner_array_is_one_row(mock, capsys):
+    """/me has RoundingTable[]; --fields must pick from the record, not the array (live bug 2026-10-24)."""
+    me = {"Company": "Sample Co", "Currency": "USD", "TimeZone": "America/Denver", "LockDate": None,
+          "RoundingTable": [{"RangeTo": 0.0, "RoundToNearest": 0.01}]}
+    mock.routes[("GET", "/me")] = (200, me, {})
+    code, out, _ = run(capsys, "me", "get", "-o", "csv", "--fields", "Company,Currency,TimeZone")
+    assert code == 0 and out.splitlines() == ["Company,Currency,TimeZone", "Sample Co,USD,America/Denver"]

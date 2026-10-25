@@ -172,7 +172,9 @@ def build(rebuild: Path) -> dict:
                 "method": row["method"],
                 "path": row["path"],
                 "params": params,
-                "list_key": key,
+                # A detail record that merely contains an array (/me has RoundingTable[])
+                # is still one record; only paged lists and single-key envelopes are lists.
+                "list_key": key if (paged or envelope) else None,
                 "paged": paged,
                 "request": op.get("request"),
                 "response": op.get("response"),
