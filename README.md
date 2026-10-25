@@ -17,7 +17,7 @@ cin7 <group> <operation> [--query-flags] [-o json|table|csv] [--all-pages]
 | Groups | 32 (`sale`, `product`, `purchase`, `production`, `stock`, `customer`, `supplier`, `webhooks`, `me`, `crm`, …) |
 | Operations | 295 · 102 reads · 193 writes |
 | Paged lists (`--all-pages`) | 47 |
-| Runtime dependencies | none (Python 3.10+ standard library) |
+| Runtime dependencies | none for the CLI (Python 3.10+ standard library); Textual for the optional TUI |
 
 ## Install
 
@@ -30,6 +30,27 @@ Or from a checkout:
 ```bash
 git clone git@github.com:fightmilk808/cin7-core-cli.git && cd cin7-core-cli && pip install -e '.[dev]'
 ```
+
+## TUI
+
+```bash
+pipx install 'cin7-core-cli[tui] @ git+ssh://git@github.com/fightmilk808/cin7-core-cli.git'
+cin7 tui
+```
+
+![cin7 tui listing sales by customer reference (sample data from the test mock)](docs/tui.svg)
+
+A [Textual](https://textual.textualize.io) terminal UI over the same spec, client, pacing and auth as the CLI:
+
+- **Left:** every group and operation. `/` filters by name, path or resource. Writes show in orange with ✎.
+- **Form:** one typed field per query parameter, with required ones starred and checked before anything is sent.
+  Enter or `^R` runs it; **All pages** walks a paged list.
+- **Results:** Table (Enter on a row opens it in Record), raw JSON, the Blueprint Shape, and a Log of calls.
+  `^E` / `^J` save the result as CSV or JSON in the current folder.
+- Sale rows lead with `CustomerReference`, then the `SO-` number (the CLI's table and CSV do the same).
+
+**The TUI is read-only, full stop.** Write operations are listed so their request shapes can be read, but there is
+no way to send one from it; the Run button is disabled and the run path refuses them too.
 
 ## Auth
 
@@ -77,6 +98,7 @@ cin7 ops fulfilment             # search every operation (command, method, path,
 cin7 ops --reads -o csv         # just the GETs
 cin7 describe sale get          # params, request shape and response shape from the Blueprint
 cin7 webhook-events Sale/Created
+cin7 tui                        # browse and run reads interactively
 ```
 
 ### How commands are named
@@ -162,6 +184,7 @@ matches what `build_spec.py` produces when the rebuild repo is checked out next 
 | [`src/cin7_cli/ratelimit.py`](src/cin7_cli/ratelimit.py) | cross-process pacing |
 | [`src/cin7_cli/paging.py`](src/cin7_cli/paging.py) | `--all-pages` |
 | [`src/cin7_cli/output.py`](src/cin7_cli/output.py) | json / table / csv |
+| [`src/cin7_cli/tui.py`](src/cin7_cli/tui.py) | `cin7 tui` (Textual, read-only) |
 
 ### Known gaps in the source map
 

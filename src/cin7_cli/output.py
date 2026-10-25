@@ -18,7 +18,7 @@ def rows_of(data: object, list_key: str | None) -> list[dict]:
     return [{"value": data}]
 
 
-def _cell(v: object) -> str:
+def cell(v: object) -> str:
     if v is None:
         return ""
     if isinstance(v, list):
@@ -30,7 +30,13 @@ def _cell(v: object) -> str:
     return str(v)
 
 
-def _columns(rows: list[dict], fields: list[str] | None) -> list[str]:
+# A sale is named by its customer reference (the Shopify order number), so that
+# column leads, with the SO- number after it.
+LEAD_COLUMNS = ("CustomerReference", "OrderNumber")
+
+
+def columns(rows: list[dict], fields: list[str] | None = None) -> list[str]:
+    """Columns in first-seen order, lead columns first; `fields` overrides."""
     if fields:
         return fields
     cols: list[str] = []
@@ -38,7 +44,8 @@ def _columns(rows: list[dict], fields: list[str] | None) -> list[str]:
         for k in r:
             if k not in cols:
                 cols.append(k)
-    return cols
+    lead = [c for c in LEAD_COLUMNS if c in cols]
+    return lead + [c for c in cols if c not in lead]
 
 
 def render(data: object, fmt: str = "json", list_key: str | None = None, fields: list[str] | None = None) -> str:
@@ -49,16 +56,16 @@ def render(data: object, fmt: str = "json", list_key: str | None = None, fields:
             return json.dumps(rows, indent=2, default=str)
         return json.dumps(data, indent=2, default=str)
     rows = rows_of(data, list_key)
-    cols = _columns(rows, fields)
+    cols = columns(rows, fields)
     if fmt == "csv":
         buf = io.StringIO()
         w = csv.writer(buf, lineterminator="\n")
         w.writerow(cols)
         for r in rows:
-            w.writerow([_cell(r.get(c)) for c in cols])
+            w.writerow([cell(r.get(c)) for c in cols])
         return buf.getvalue().rstrip("\n")
     if fmt == "table":
-        cells = [[_cell(r.get(c)) for c in cols] for r in rows]
+        cells = [[cell(r.get(c)) for c in cols] for r in rows]
         widths = [min(48, max([len(c)] + [len(row[i]) for row in cells])) for i, c in enumerate(cols)]
 
         def line(vals: list[str]) -> str:

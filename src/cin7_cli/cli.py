@@ -5,6 +5,7 @@
     cin7 describe <group> <operation>        params, request and response shape
     cin7 raw <METHOD> <path> [-q K=V ...]    any path, same safety rules
     cin7 webhook-events [event]              webhook payload shapes
+    cin7 tui                                 read-only terminal UI
 """
 
 from __future__ import annotations
@@ -118,6 +119,9 @@ def build_parser(only_group: str | None = "*") -> argparse.ArgumentParser:
     raw.add_argument("method", type=str.upper, choices=["GET", "POST", "PUT", "DELETE"])
     raw.add_argument("path", help="path under the API root, e.g. /me")
     _common(raw, write=True)
+
+    tui = top.add_parser("tui", help="browse and run read operations in a terminal UI (needs the tui extra)")
+    tui.add_argument("--rate", type=float, default=float(os.environ.get("CIN7_RATE_PER_MIN", DEFAULT_PER_MIN)))
 
     wh = top.add_parser("webhook-events", help="webhook payload shapes from the API Blueprint")
     wh.add_argument("event", nargs="?", help="e.g. Sale/Created")
@@ -279,6 +283,13 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_ops(args)
     if args.command == "describe":
         return _cmd_describe(args)
+    if args.command == "tui":
+        try:
+            from . import tui
+        except ImportError:
+            print("cin7: the TUI needs Textual: pip install 'cin7-core-cli[tui]'", file=sys.stderr)
+            return EXIT_USAGE
+        return tui.run(args.rate)
     if args.command == "webhook-events":
         return _cmd_webhooks(args)
     if args.command == "raw":

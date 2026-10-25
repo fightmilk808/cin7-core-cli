@@ -151,7 +151,7 @@ def test_table_and_csv_output(mock, capsys):
     rows = list(csv.reader(io.StringIO(out)))
     assert rows == [["CustomerReference", "SaleID", "Lines"], ["#1", "a", "[2]"], ["#2", "b", "[0]"]]
     code, out, _ = run(capsys, "sale", "list", "-o", "table")
-    assert out.splitlines()[0].split() == ["SaleID", "CustomerReference", "Lines"]
+    assert out.splitlines()[0].split() == ["CustomerReference", "SaleID", "Lines"]
 
 
 def test_429_backs_off_and_retries(mock, capsys):
