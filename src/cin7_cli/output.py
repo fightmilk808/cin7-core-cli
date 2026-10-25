@@ -42,7 +42,7 @@ _MONEY = re.compile(
     r"credit(?!note)|deposit|revenue|margin|profit|landed|average|subtotal|worth|surcharge|freight",
     re.I,
 )
-_NOT_MONEY = re.compile(r"percent|qty|quantity|count|number|date|status|type|name|days|rate|terms|code|reference|account", re.I)
+_NOT_MONEY = re.compile(r"percent|qty|quantity|count|number|date|status|type|name|days|rate|term|method|tier|currency|rule|inclusive|basis|code|reference|account", re.I)
 
 
 def is_money(column: str | None) -> bool:
