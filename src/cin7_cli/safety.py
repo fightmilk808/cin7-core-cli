@@ -2,8 +2,8 @@
 
 A write (POST, PUT, DELETE) runs only when all of these hold:
 
-1. `CIN7_CLI_READ_ONLY` is not set. Set it on shared machines and agent hosts to
-   switch writes off outright.
+1. `CIN7_CLI_READ_ONLY` is not set, in the environment or the config file. Set
+   it on shared machines and agent hosts to switch writes off outright.
 2. The command carries `--allow-write`.
 3. A person at a real terminal sees the full request and types the operation
    name back (e.g. `sale create`). The answer is read from the controlling
@@ -12,9 +12,9 @@ A write (POST, PUT, DELETE) runs only when all of these hold:
 
 from __future__ import annotations
 
-import os
 import sys
 
+from .auth import setting
 from .client import Request
 from .spec import Operation
 
@@ -44,7 +44,7 @@ def check_write(op: Operation, req: Request, allow_write: bool, base_url: str) -
     """Return normally only when the write may be sent; otherwise raise WriteBlocked."""
     if not op.is_write:
         return
-    if os.environ.get(READ_ONLY_ENV, "").strip() not in ("", "0", "false", "no"):
+    if (setting(READ_ONLY_ENV) or "").strip() not in ("", "0", "false", "no"):
         raise WriteBlocked(f"{op.full_name} is a write ({op.method}) and {READ_ONLY_ENV} is set: writes are off")
     if not allow_write:
         raise WriteBlocked(

@@ -190,18 +190,74 @@ def test_missing_credentials(monkeypatch, capsys):
     assert code == 3 and "CIN7_APP_KEY" in err
 
 
-def test_op_reference_resolution(mock, monkeypatch, tmp_path, capsys):
+FAKE_OP = """#!/bin/sh
+# Fake 1Password CLI: `op inject` swaps {{ op://.../<field> }} for resolved-<field>.
+[ "$1" = inject ] || exit 1
+echo "call" >> "$FAKE_OP_LOG"
+sed -E 's#\\{\\{ op://[^}]*/([^/} ]+) \\}\\}#resolved-\\1#g'
+"""
+
+
+@pytest.fixture
+def fake_op(monkeypatch, tmp_path):
     fake = tmp_path / "bin" / "op"
     fake.parent.mkdir()
-    fake.write_text('#!/bin/sh\n[ "$1" = read ] && printf "resolved-%s" "$(basename "$3")"\n')
+    fake.write_text(FAKE_OP)
     fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
+    log = tmp_path / "op.log"
+    monkeypatch.setenv("FAKE_OP_LOG", str(log))
     monkeypatch.setenv("PATH", f"{fake.parent}{os.pathsep}{os.environ['PATH']}")
-    monkeypatch.setenv("CIN7_ACCOUNT_ID", "op://Vault/Cin7/account")
-    monkeypatch.setenv("CIN7_APP_KEY", "op://Vault/Cin7/key")
+    return log
+
+
+def test_op_reference_resolution_one_approval(mock, monkeypatch, fake_op, capsys):
+    monkeypatch.setenv("CIN7_ACCOUNT_ID", "op://Vault/Cin7 API/account")
+    monkeypatch.setenv("CIN7_APP_KEY", "op://Vault/Cin7 API/key")
     mock.routes[("GET", "/me")] = (200, {}, {})
     assert run(capsys, "me", "get")[0] == 0
     h = mock.requests[0]["headers"]
     assert h["api-auth-accountid"] == "resolved-account" and h["api-auth-applicationkey"] == "resolved-key"
+    assert fake_op.read_text().count("call") == 1, "both references in one op call"
+
+
+def test_config_file_fallback_and_setup(mock, monkeypatch, fake_op, capsys):
+    monkeypatch.delenv("CIN7_ACCOUNT_ID")
+    monkeypatch.delenv("CIN7_APP_KEY")
+    code, out, _ = run(capsys, "auth", "status")
+    assert code == 3 and "missing" in out
+    code, out, _ = run(capsys, "auth", "setup", "--account-ref", "op://V/I/username", "--key-ref", "op://V/I/password")
+    assert code == 0 and "writes are off" in out
+    from cin7_cli import auth
+
+    path = auth.config_path()
+    assert oct(path.stat().st_mode)[-3:] == "600"
+    assert "op://V/I/password" in path.read_text()
+    code, out, _ = run(capsys, "auth", "status")
+    assert code == 0 and "CIN7_APP_KEY: config" in out and "writes: off" in out
+    mock.routes[("GET", "/me")] = (200, {"Company": "Sample Co"}, {})
+    code, out, _ = run(capsys, "auth", "test")
+    assert code == 0 and "Sample Co" in out
+    assert mock.requests[0]["headers"]["api-auth-applicationkey"] == "resolved-password"
+    # read-only from the config file blocks writes even with --allow-write
+    monkeypatch.setattr(safety, "_ask", lambda prompt: "sale create")
+    code, _, err = run(capsys, "sale", "create", "--body", "{}", "--allow-write")
+    assert code == 2 and "CIN7_CLI_READ_ONLY" in err and len(mock.requests) == 1
+
+
+def test_setup_refuses_raw_values(capsys):
+    code, _, err = run(capsys, "auth", "setup", "--account-ref", "abc", "--key-ref", "op://V/I/p")
+    assert code == 3 and "op:// reference" in err
+
+
+def test_op_failure_is_reported(monkeypatch, tmp_path, capsys):
+    fake = tmp_path / "bin" / "op"
+    fake.parent.mkdir()
+    fake.write_text("#!/bin/sh\necho 'authorization prompt dismissed' >&2\nexit 1\n")
+    fake.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{fake.parent}{os.pathsep}{os.environ['PATH']}")
+    monkeypatch.setenv("CIN7_APP_KEY", "op://V/I/password")
+    code, _, err = run(capsys, "me", "get")
+    assert code == 3 and "dismissed" in err
 
 
 def test_dry_run_makes_no_call(mock, capsys):

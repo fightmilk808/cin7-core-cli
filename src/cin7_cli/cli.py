@@ -6,13 +6,13 @@
     cin7 raw <METHOD> <path> [-q K=V ...]    any path, same safety rules
     cin7 webhook-events [event]              webhook payload shapes
     cin7 tui                                 read-only terminal UI
+    cin7 auth setup|status|test              credentials (op:// references)
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import sys
 
@@ -58,7 +58,7 @@ def _common(p: argparse.ArgumentParser, write: bool) -> None:
     g.add_argument(
         "--rate",
         type=float,
-        default=float(os.environ.get("CIN7_RATE_PER_MIN", DEFAULT_PER_MIN)),
+        default=float(auth.setting("CIN7_RATE_PER_MIN", str(DEFAULT_PER_MIN))),
         help=f"max calls per minute, shared by every cin7 process (default {DEFAULT_PER_MIN}, cap {MAX_PER_MIN})",
     )
     g.add_argument("--timeout", type=float, default=60, help="seconds per HTTP call")
@@ -121,7 +121,17 @@ def build_parser(only_group: str | None = "*") -> argparse.ArgumentParser:
     _common(raw, write=True)
 
     tui = top.add_parser("tui", help="browse and run read operations in a terminal UI (needs the tui extra)")
-    tui.add_argument("--rate", type=float, default=float(os.environ.get("CIN7_RATE_PER_MIN", DEFAULT_PER_MIN)))
+    tui.add_argument("--rate", type=float, default=float(auth.setting("CIN7_RATE_PER_MIN", str(DEFAULT_PER_MIN))))
+
+    au = top.add_parser("auth", help="set up or check credentials (op:// references in a config file)")
+    au_sub = au.add_subparsers(dest="auth_command", metavar="<setup|status|test>")
+    au_sub.required = True
+    st = au_sub.add_parser("setup", help="save op:// references to the config file (never key values)")
+    st.add_argument("--account-ref", required=True, help="op:// reference to the account id")
+    st.add_argument("--key-ref", required=True, help="op:// reference to the application key")
+    st.add_argument("--allow-writes", action="store_true", help="leave CIN7_CLI_READ_ONLY off (default: writes off)")
+    au_sub.add_parser("status", help="where credentials come from (no values)")
+    au_sub.add_parser("test", help="one GET /me call; prints the company name")
 
     wh = top.add_parser("webhook-events", help="webhook payload shapes from the API Blueprint")
     wh.add_argument("event", nargs="?", help="e.g. Sale/Created")
@@ -224,6 +234,38 @@ def _cmd_webhooks(args) -> int:
     return EXIT_OK
 
 
+def _cmd_auth(args) -> int:
+    try:
+        if args.auth_command == "setup":
+            values = {auth.ACCOUNT_ENV: args.account_ref, auth.KEY_ENV: args.key_ref}
+            if not args.allow_writes:
+                values["CIN7_CLI_READ_ONLY"] = "1"
+            path = auth.write_config(values)
+            print(f"saved {path} (references only, mode 600)" + ("" if args.allow_writes else "; writes are off"))
+            return EXIT_OK
+        if args.auth_command == "status":
+            src = auth.source()
+            print(f"config file: {auth.config_path()}" + ("" if auth.config_path().exists() else " (not present)"))
+            for k, where in src.items():
+                print(f"{k}: {where}")
+            ro = (auth.setting("CIN7_CLI_READ_ONLY") or "").strip() not in ("", "0", "false", "no")
+            print(f"writes: {'off (CIN7_CLI_READ_ONLY)' if ro else 'gated by --allow-write + typed confirmation'}")
+            print(f"API root: {base_url()}")
+            return EXIT_OK if "missing" not in src.values() else EXIT_AUTH
+        creds = auth.load()
+        client = Client(creds, RateLimiter(float(auth.setting("CIN7_RATE_PER_MIN", str(DEFAULT_PER_MIN)))))
+        me = client.send(Request("GET", build_url("/me", {})))
+        company = me.get("Company") if isinstance(me, dict) else None
+        print(f"ok: connected to {company or '(no company name in /me)'}")
+        return EXIT_OK
+    except auth.AuthError as exc:
+        print(f"cin7: {exc}", file=sys.stderr)
+        return EXIT_AUTH
+    except ApiError as exc:
+        print(f"cin7: {exc}", file=sys.stderr)
+        return EXIT_API
+
+
 def _run(args, op: spec.Operation, method: str, path: str) -> int:
     query = _query(args, op if args.command != "raw" else None)
     body = _read_body(getattr(args, "body", None))
@@ -283,6 +325,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_ops(args)
     if args.command == "describe":
         return _cmd_describe(args)
+    if args.command == "auth":
+        return _cmd_auth(args)
     if args.command == "tui":
         try:
             from . import tui

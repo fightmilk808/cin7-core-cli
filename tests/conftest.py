@@ -78,6 +78,8 @@ def _isolated(monkeypatch, tmp_path):
     monkeypatch.setenv("CIN7_ACCOUNT_ID", ACCOUNT)
     monkeypatch.setenv("CIN7_APP_KEY", KEY)
     monkeypatch.setenv("CIN7_CLI_STATE_DIR", str(tmp_path / "state"))
+    # Never read the developer's real ~/.config/cin7-cli/config.
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.delenv("CIN7_CLI_READ_ONLY", raising=False)
     monkeypatch.delenv("CIN7_RATE_PER_MIN", raising=False)
     real_init = ratelimit.RateLimiter.__init__

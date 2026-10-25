@@ -54,21 +54,22 @@ no way to send one from it; the Run button is disabled and the run path refuses 
 
 ## Auth
 
-Cin7 wants two headers on every call, `api-auth-accountid` and `api-auth-applicationkey`. The CLI reads them from
-environment variables. Each can be the value itself or a **1Password reference**, resolved with `op read` at call time:
+Cin7 wants two headers on every call, `api-auth-accountid` and `api-auth-applicationkey`. Save **1Password
+references** to them once:
 
 ```bash
-export CIN7_ACCOUNT_ID='op://<vault>/<item>/account-id'
-export CIN7_APP_KEY='op://<vault>/<item>/application-key'
+cin7 auth setup --account-ref 'op://<vault>/<item>/username' --key-ref 'op://<vault>/<item>/password'
+cin7 auth status    # where each credential comes from, whether writes are off (never values)
+cin7 auth test      # one GET /me: "ok: connected to <Company>"
 ```
 
-Each `cin7` run resolves `op://` references with `op read`, which can mean a 1Password approval per call. Wrap a
-session in `op run` instead, so 1Password resolves them once:
+That writes `~/.config/cin7-cli/config` (mode 600) with the references only; it refuses anything that isn't an
+`op://` reference, and it turns writes off (`CIN7_CLI_READ_ONLY=1`) unless you pass `--allow-writes`. Each run
+resolves both references with **one** `op inject` call, so it costs one 1Password approval, and it works from any
+shell, including ones that don't read `~/.zshrc`.
 
-```bash
-op run -- cin7 tui
-op run -- sh -c 'cin7 me get; cin7 product list --limit 1'
-```
+Environment variables `CIN7_ACCOUNT_ID` / `CIN7_APP_KEY` override the file and can hold either references or values.
+`op run -- cin7 tui` resolves environment references once for a whole session.
 
 The values are never written to disk, never printed, and are masked (`***`) if Cin7 ever echoes them back in an
 error. `.env.example` lists every variable; keep real values out of the repo.
@@ -80,6 +81,9 @@ error. `.env.example` lists every variable; keep real values out of the repo.
 | `CIN7_CLI_READ_ONLY` | unset | set to `1` to switch writes off outright |
 | `CIN7_BASE_URL` | `https://inventory.dearsystems.com/ExternalApi/v2` | point at a mock server for testing |
 | `CIN7_CLI_STATE_DIR` | `~/.cache/cin7-cli` | where the shared pacing file lives |
+
+`CIN7_ACCOUNT_ID`, `CIN7_APP_KEY`, `CIN7_CLI_READ_ONLY` and `CIN7_RATE_PER_MIN` can also live in the config file;
+the environment wins.
 
 ## Examples
 
