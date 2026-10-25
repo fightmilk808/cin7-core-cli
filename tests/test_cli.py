@@ -27,11 +27,13 @@ def run(capsys, *argv):
 
 def test_spec_covers_every_operation():
     ops = spec.operations()
-    assert len(ops) == 295
-    assert len(spec.groups()) == 32
+    public = [o for o in ops if o.is_public]
+    assert len(public) == 295
+    assert len({o.group for o in public}) == 32
+    assert sum(o.method == "GET" for o in public) == 102
+    assert sum(o.source == "web" for o in ops) == 2177
     names = [(o.group, o.name) for o in ops]
     assert len(names) == len(set(names)), "subcommand names must be unique per group"
-    assert sum(o.method == "GET" for o in ops) == 102
 
 
 def test_every_operation_parses(capsys):
@@ -397,3 +399,79 @@ def test_detail_record_with_inner_array_is_one_row(mock, capsys):
     mock.routes[("GET", "/me")] = (200, me, {})
     code, out, _ = run(capsys, "me", "get", "-o", "csv", "--fields", "Company,Currency,TimeZone")
     assert code == 0 and out.splitlines() == ["Company,Currency,TimeZone", "Sample Co,USD,America/Denver"]
+
+
+# --- internal (web app) endpoints ---------------------------------------------------
+
+
+@pytest.fixture
+def web(mock, monkeypatch):
+    monkeypatch.setenv("CIN7_WEB_BASE_URL", mock.url.removesuffix("/ExternalApi/v2"))
+    monkeypatch.setenv("CIN7_WEB_COOKIE", "ASP.NET_SessionId=sess12345678; .ASPXAUTH=auth87654321")
+    return mock
+
+
+def test_internal_read_sends_cookie_not_api_key(web, capsys):
+    web.routes[("GET", "/api/MRP_Results")] = (200, {"root": [{"ID": 1}], "total": 1}, {})
+    code, out, err = run(capsys, "web-mrp", "mrp-results", "--mrp-id", "m1")
+    assert code == 0 and json.loads(out)["total"] == 1
+    r = web.requests[0]
+    assert r["path"] == "/api/MRP_Results" and r["query"] == {"MrpID": "m1"}
+    assert "sess12345678" in r["headers"]["cookie"] and "api-auth-applicationkey" not in r["headers"]
+    assert "sess12345678" not in out + err
+
+
+def test_internal_writes_and_reference_only_never_send(web, capsys):
+    for argv in (["web-mrp", "mrp-run"], ["web-mrp", "mrp-recalculate"], ["wms", "pos-ping"]):
+        if spec.find(argv[0], argv[1]) is None:
+            continue
+        code, _, err = run(capsys, *argv, "--dry-run")
+        assert code == 2, argv
+    assert web.requests == []
+    # no operation marked internal-write is runnable, whatever its name
+    for o in spec.operations():
+        if not o.is_public and o.runnable:
+            assert o.effect.startswith("read"), o.full_name
+            assert o.source == "web"
+
+
+def test_internal_post_read_sends_body(web, capsys):
+    web.routes[("POST", "/api/MRP_SupplySuggestions")] = (200, {"root": [], "total": 0}, {})
+    code, _, _ = run(capsys, "web-mrp", "mrp-supply-suggestions", "--body", '{"MrpID": "m1"}')
+    assert code == 0 and web.requests[0]["method"] == "POST" and web.requests[0]["body"] == {"MrpID": "m1"}
+
+
+def test_internal_all_pages_uses_ext_paging(web, capsys):
+    def page(req):
+        p = int(req["query"]["page"])
+        assert req["query"]["start"] == str((p - 1) * 100)
+        return 200, {"root": [{}] * (100 if p == 1 else 20), "total": 120}, {}
+
+    web.routes[("GET", "/api/MRP_vMRP")] = page
+    code, out, _ = run(capsys, "web-mrp", "mrp-v-mrp", "--all-pages")
+    assert code == 0 and len(json.loads(out)["root"]) == 120
+
+
+def test_expired_session_message(web, capsys):
+    web.routes[("GET", "/api/MRP_vMRP")] = (302, None, {"Location": "/Account/Login?ReturnUrl=%2f"})
+    code, _, err = run(capsys, "web-mrp", "mrp-v-mrp")
+    assert code == 1 and "session has expired" in err
+
+
+def test_missing_web_cookie(web, monkeypatch, capsys):
+    monkeypatch.delenv("CIN7_WEB_COOKIE")
+    code, _, err = run(capsys, "web-mrp", "mrp-v-mrp")
+    assert code == 3 and "browser session" in err
+
+
+def test_file_download_saved(web, tmp_path, capsys):
+    op = next(o for o in spec.operations() if o.file)
+    web.routes[("GET", op.path)] = (200, "a,b\n1,2", {"Content-Disposition": 'attachment; filename="stock.csv"'})
+    code, out, _ = run(capsys, op.group, op.name, "--save-dir", str(tmp_path))
+    assert code == 0 and "stock.csv" in out
+    assert (tmp_path / "stock.csv").exists()
+
+
+def test_cookie_ref_stored_as_reference_only(capsys):
+    code, _, err = run(capsys, "auth", "setup", "--cookie-ref", "ASPXAUTH=rawsecretvalue")
+    assert code == 3 and "op:// reference" in err

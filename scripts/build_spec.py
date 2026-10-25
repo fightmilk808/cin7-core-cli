@@ -113,6 +113,165 @@ def command_name(group: str, row: dict, op: dict, collection: bool) -> str:
     return f"{suffix}-{verb}" if suffix else verb
 
 
+# --- internal (web app) and other surfaces ---------------------------------------
+
+WEB_BASE = "https://inventory.dearsystems.com"
+# Never runnable, whatever the map says about reads: names that log out or act.
+NEVER_RUN = re.compile(
+    r"log ?off|logout|delete|remove|void|undo|cancel|authori[sz]e|release|complete|recalculate|"
+    r"_run\b|split|merge|reorder|import|upload|send|post\b",
+    re.I,
+)
+MODULE_TITLES = {
+    "00-shared": "Shared", "01-shell": "Shell", "02-account": "Account", "03-dashboard": "Dashboard",
+    "04-inventory": "Inventory", "05-purchase": "Purchase", "06-sale": "Sale", "07-production": "Production",
+    "08-financials": "Financials", "09-crm": "CRM", "10-ai": "AI", "11-reports": "Reports",
+    "12-integrations": "Integrations", "13-settings": "Settings", "14-reference-books": "Reference books",
+    "15-other": "Other", "16-mrp": "MRP", "25-portals": "Portals",
+}
+
+
+def _web_name(url: str) -> str:
+    s = url.removeprefix("/api/").lstrip("/").replace("_Index_", "_")
+    return flag_name(re.sub(r"[_/]+", "-", s)).replace("--", "-").strip("-")
+
+
+def _module_of(url: str, sections: str, readmes: dict[str, str]) -> str:
+    if "MRP" in url:
+        return "16-mrp"
+    hits = [m for m, text in readmes.items() if re.search(re.escape(url) + r"[`\s|)]", text)]
+    hits = [m for m in hits if m != "01-shell"] or hits
+    if hits:
+        return hits[0]
+    if "Integrations" in sections:
+        return "12-integrations"
+    return "15-other"
+
+
+FILE_URL = re.compile(r"/(Download\w*|Export\w*)$")
+
+
+def web_is_file(url: str, kind: str, effect: str, methods: str) -> bool:
+    """A controller download/export: a plain read that answers with a file, not JSON.
+
+    `/…/Print` is left out on purpose: the map says printing may log an audit line in Cin7.
+    """
+    return kind == "mvc" and effect == "read" and bool(FILE_URL.search(url)) and methods in ("", "GET", "GET(navigate)")
+
+
+def web_read_method(url: str, effect: str, methods: str) -> str | None:
+    """How a web endpoint is read, or None if it may not run from here.
+
+    GET for store reads and plain GETs; POST only where the map marks the call
+    itself `POST(read)` (a JSON query body, e.g. MRP suggestion lines).
+    """
+    if NEVER_RUN.search(url) or not effect.startswith("read"):
+        return None
+    if effect != "read" and "audit" in effect:
+        return None
+    tokens = methods.split()
+    if methods.startswith("REST") or " REST(" in methods or "GET" in tokens:
+        return "GET"
+    if "POST(read)" in tokens:
+        return "POST"
+    return None
+
+
+def build_web(rebuild: Path) -> list[dict]:
+    readmes = {p.parent.name: p.read_text() for p in sorted((rebuild / "modules").glob("*/README.md"))}
+    rows = list(csv.DictReader((rebuild / "data" / "endpoints.csv").open()))
+    out: list[dict] = []
+    seen: dict[tuple[str, str], int] = {}
+    for r in rows:
+        url = r["url"]
+        module = _module_of(url, r["sections"], readmes)
+        group = "web-" + module.split("-", 1)[1]
+        name = _web_name(url)
+        n = seen.get((group, name), 0)
+        seen[(group, name)] = n + 1
+        if n:
+            name = f"{name}-{n + 1}"
+        is_file = web_is_file(url, r["kind"], r["effect"], r["methods"])
+        read_method = "GET" if is_file else web_read_method(url, r["effect"], r["methods"])
+        runnable = read_method is not None
+        params: dict[str, dict] = {}
+        for p in r["params"].split():
+            # Spellings differ across pages (CustomerID / customerID); one flag each.
+            if p != "_dc" and flag_name(p) not in {m["flag"] for m in params.values()}:
+                params[p] = {"type": "string", "flag": flag_name(p)}
+        root = r["reader_root"] or None
+        paged = bool(root) and "REST" in r["methods"]
+        if paged:
+            for p in ("page", "start", "limit"):
+                if p not in {m["flag"] for m in params.values()}:
+                    params[p] = {"type": "int", "flag": p}
+        out.append(
+            {
+                "source": "web",
+                "group": group,
+                "group_title": "Web · " + MODULE_TITLES.get(module, module),
+                "name": name,
+                "resource": url,
+                "title": f"{r['kind']} · {r['effect']}",
+                "method": read_method or (r["methods"] or "?"),
+                "path": url,
+                "params": params,
+                "list_key": root,
+                "paged": paged,
+                "runnable": runnable,
+                "file": is_file,
+                "effect": r["effect"],
+                "methods_raw": r["methods"],
+                "body_keys": r["body_keys"].split(),
+                "pages": r["pages"].split(),
+                "request": None,
+                "response": None,
+            }
+        )
+    return out
+
+
+def build_other(rebuild: Path) -> list[dict]:
+    """MES, WMS and report-service endpoints: listed for reference, never runnable here."""
+    out: list[dict] = []
+    for fname, group, title in (
+        ("wms-api.csv", "wms", "WMS app (own login)"),
+        ("mes-api.csv", "mes", "MES app (own login)"),
+        ("report-service-endpoints.csv", "report-service", "Report service (session)"),
+    ):
+        seen: dict[str, int] = {}
+        for r in csv.DictReader((rebuild / "data" / fname).open()):
+            path = r.get("path") or r.get("url")
+            name = _web_name(path)
+            n = seen.get(name, 0)
+            seen[name] = n + 1
+            if n:
+                name = f"{name}-{n + 1}"
+            out.append(
+                {
+                    "source": group,
+                    "group": group,
+                    "group_title": title,
+                    "name": name,
+                    "resource": r.get("full_url") or path,
+                    "title": f"{r.get('effect') or 'unknown'} · reference only",
+                    "method": r.get("methods") or "?",
+                    "path": path,
+                    "params": {p: {"type": "string", "flag": flag_name(p)} for p in dict.fromkeys((r.get("params") or "").split())},
+                    "list_key": None,
+                    "paged": False,
+                    "runnable": False,
+                    "effect": r.get("effect") or "",
+                    "methods_raw": r.get("methods") or "",
+                    "body_keys": [],
+                    "pages": [],
+                    "request": None,
+                    "response": None,
+                }
+            )
+    return out
+
+
 def build(rebuild: Path) -> dict:
     shapes = json.loads((rebuild / "data" / "public-api-shapes.json").read_text())
     rows = list(csv.DictReader((rebuild / "data" / "public-api.csv").open()))
@@ -164,6 +323,8 @@ def build(rebuild: Path) -> dict:
             meta["flag"] = flag_name(pname)
         commands.append(
             {
+                "source": "public",
+                "runnable": True,
                 "group": cmd_group,
                 "group_title": group,
                 "name": name,
@@ -180,8 +341,11 @@ def build(rebuild: Path) -> dict:
                 "response": op.get("response"),
             }
         )
+    commands += build_web(rebuild) + build_other(rebuild)
     return {
-        "source": "fightmilk808/cin7-core-rebuild data/public-api-shapes.json + data/public-api.csv",
+        "source": "fightmilk808/cin7-core-rebuild data/ (public-api-shapes.json, public-api.csv, endpoints.csv, "
+        "wms-api.csv, mes-api.csv, report-service-endpoints.csv)",
+        "web_base_url": WEB_BASE,
         "base_url": "https://inventory.dearsystems.com/ExternalApi/v2",
         "commands": commands,
         "webhooks": shapes.get("webhooks", {}),
@@ -192,8 +356,14 @@ def main() -> None:
     rebuild = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_REBUILD
     spec = build(rebuild)
     OUT.write_text(json.dumps(spec, indent=1, sort_keys=False) + "\n")
+    from collections import Counter
+
+    by = Counter(c["source"] for c in spec["commands"])
+    runnable = Counter(c["source"] for c in spec["commands"] if c["runnable"])
     groups = {c["group"] for c in spec["commands"]}
     print(f"wrote {OUT.relative_to(ROOT)}: {len(spec['commands'])} operations in {len(groups)} groups")
+    for src, n in by.items():
+        print(f"  {src}: {n} ({runnable[src]} runnable)")
 
 
 if __name__ == "__main__":

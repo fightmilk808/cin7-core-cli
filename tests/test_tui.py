@@ -23,16 +23,53 @@ def _param(app, flag: str) -> Input:
     return app.query_one(f"#p-{flag}", ParamInput)
 
 
-async def test_tree_lists_every_group(tmp_path):
+def _groups(tree):
+    return [(h, g) for h in tree.root.children for g in h.children if isinstance(g.data, tuple)]
+
+
+async def test_tree_sections_and_main_groups_first(tmp_path):
     app = Cin7Tui(export_dir=tmp_path)
     async with app.run_test(size=(140, 45)) as pilot:
         tree = app.query_one("#ops", Tree)
-        assert len(tree.root.children) == len(spec.groups()) == 32
-        leaves = sum(len(n.children) for n in tree.root.children)
-        assert leaves == 295
+        heads = [str(h.label) for h in tree.root.children]
+        assert "MAIN" in heads[0] and "Public API" in heads[1] and "INTERNAL" in heads[2] and "Reference" in heads[3]
+        main = [g.data[1] for g in tree.root.children[0].children]
+        assert main == ["product", "sale", "stock", "production", "purchase"]
+        groups = _groups(tree)
+        assert len(groups) == len(spec.groups())
+        assert sum(len(g.children) for _, g in groups) == len(spec.operations())
         app.query_one("#filter", Input).value = "saleList"
         await pilot.pause()
-        assert [str(n.label).split()[0] for n in tree.root.children] == ["sale"]
+        assert [g.data[1] for _, g in _groups(tree)][0] == "sale"
+
+
+async def test_internal_read_uses_session_cookie(mock, monkeypatch, tmp_path):
+    monkeypatch.setenv("CIN7_WEB_BASE_URL", mock.url.removesuffix("/ExternalApi/v2"))
+    monkeypatch.setenv("CIN7_WEB_COOKIE", "ASP.NET_SessionId=abcdef123456; .ASPXAUTH=zzzz9999zzzz")
+    mock.routes[("GET", "/api/MRP_vMRP")] = (200, {"root": [{"ID": "m1", "Name": "Run 1"}], "total": 1}, {})
+    app = Cin7Tui(export_dir=tmp_path)
+    async with app.run_test(size=(140, 45)) as pilot:
+        app.select(spec.find("web-mrp", "mrp-v-mrp"))
+        await pilot.pause()
+        app.action_run()
+        await _settle(app, pilot)
+        req = mock.requests[0]
+        assert req["headers"]["cookie"].startswith("ASP.NET_SessionId=") and "api-auth-applicationkey" not in req["headers"]
+        assert app.query_one("#table", DataTable).row_count == 1
+
+
+async def test_internal_write_is_never_sent(mock, monkeypatch, tmp_path):
+    monkeypatch.setenv("CIN7_WEB_BASE_URL", mock.url.removesuffix("/ExternalApi/v2"))
+    monkeypatch.setenv("CIN7_WEB_COOKIE", "a=bbbbbbbbbb")
+    app = Cin7Tui(export_dir=tmp_path)
+    async with app.run_test(size=(140, 45)) as pilot:
+        op = spec.find("web-mrp", "mrp-run")
+        app.select(op)
+        await pilot.pause()
+        assert app.query_one("#run", Button).disabled
+        app.action_run()
+        await _settle(app, pilot)
+        assert mock.requests == []
 
 
 async def test_run_list_fills_table_and_exports(mock, tmp_path):

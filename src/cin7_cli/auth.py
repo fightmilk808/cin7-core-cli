@@ -21,7 +21,9 @@ from pathlib import Path
 
 ACCOUNT_ENV = "CIN7_ACCOUNT_ID"
 KEY_ENV = "CIN7_APP_KEY"
-CONFIG_KEYS = (ACCOUNT_ENV, KEY_ENV, "CIN7_CLI_READ_ONLY", "CIN7_RATE_PER_MIN")
+COOKIE_ENV = "CIN7_WEB_COOKIE"
+CONFIG_KEYS = (ACCOUNT_ENV, KEY_ENV, COOKIE_ENV, "CIN7_CLI_READ_ONLY", "CIN7_RATE_PER_MIN")
+SECRET_KEYS = (ACCOUNT_ENV, KEY_ENV, COOKIE_ENV)
 
 
 class AuthError(RuntimeError):
@@ -77,8 +79,8 @@ def write_config(values: dict[str, str], path: Path | None = None) -> Path:
     """Write the config file (mode 600). Refuses anything that isn't an op:// reference
     for the two credentials, so a secret value never lands on disk."""
     path = path or config_path()
-    for k in (ACCOUNT_ENV, KEY_ENV):
-        if k in values and not values[k].startswith("op://"):
+    for k in SECRET_KEYS:
+        if values.get(k) and not values[k].startswith("op://"):
             raise AuthError(f"{k} must be an op:// reference; the config file never stores key values")
     path.parent.mkdir(parents=True, exist_ok=True)
     lines = ["# cin7-core-cli: 1Password references only, never key values."]
@@ -125,7 +127,40 @@ def _resolve(values: dict[str, str]) -> dict[str, str]:
 def source() -> dict[str, str]:
     """Where each credential comes from: 'env', 'config' or 'missing' (no values)."""
     cfg = read_config()
-    return {k: "env" if os.environ.get(k) else "config" if cfg.get(k) else "missing" for k in (ACCOUNT_ENV, KEY_ENV)}
+    return {k: "env" if os.environ.get(k) else "config" if cfg.get(k) else "missing" for k in SECRET_KEYS}
+
+
+@dataclass(frozen=True)
+class WebSession:
+    """A signed-in Cin7 browser session (the Cookie header), for internal endpoints."""
+
+    cookie: str
+
+    def __repr__(self) -> str:  # pragma: no cover - trivial
+        return "WebSession(cookie=***)"
+
+    def headers(self) -> dict[str, str]:
+        """What the web app's own XHR calls send."""
+        return {"Cookie": self.cookie, "X-Requested-With": "XMLHttpRequest"}
+
+    def redact(self, text: str) -> str:
+        """Mask the cookie and each of its values."""
+        for part in [self.cookie] + [p.split("=", 1)[-1] for p in self.cookie.split(";")]:
+            part = part.strip()
+            if len(part) >= 8:
+                text = text.replace(part, "***")
+        return text
+
+
+def load_web() -> WebSession:
+    """The browser session for internal endpoints, from CIN7_WEB_COOKIE (env or config)."""
+    value = os.environ.get(COOKIE_ENV) or read_config().get(COOKIE_ENV, "")
+    if not value:
+        raise AuthError(
+            f"internal endpoints need a signed-in Cin7 browser session: save the Cookie header in 1Password and run"
+            f" `cin7 auth setup --cookie-ref op://…` (see README)"
+        )
+    return WebSession(_resolve({COOKIE_ENV: value})[COOKIE_ENV].strip().removeprefix("Cookie:").strip())
 
 
 def load(account_ref: str | None = None, key_ref: str | None = None) -> Credentials:

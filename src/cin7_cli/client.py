@@ -80,8 +80,12 @@ class Client:
         self._opener = urllib.request.build_opener(_NoRedirect)
         self.calls = 0
 
-    def send(self, req: Request) -> object:
-        """Send `req`, retrying 429 (any method) and 5xx (GET only). Returns parsed JSON."""
+    def send(self, req: Request, raw: bool = False) -> object:
+        """Send `req`, retrying 429 (any method) and 5xx (GET only).
+
+        Returns parsed JSON, or the response bytes with their Content-Type when
+        `raw` (file downloads).
+        """
         data = json.dumps(req.body).encode() if req.body is not None else None
         attempt = 0
         while True:
@@ -97,6 +101,8 @@ class Client:
                 http_req.add_header("Content-Type", "application/json")
             try:
                 with self._opener.open(http_req, timeout=self.timeout) as resp:
+                    if raw:
+                        return resp.read(), resp.headers.get("Content-Type", ""), resp.headers.get("Content-Disposition", "")
                     return _parse(resp.read())
             except urllib.error.HTTPError as err:
                 status = err.code
@@ -116,6 +122,8 @@ class Client:
     def _error(self, status: int, raw: bytes, headers) -> ApiError:
         if status in (301, 302, 303, 307, 308):
             loc = headers.get("Location", "") if headers else ""
+            if "login" in loc.lower():
+                return ApiError(status, "the Cin7 web session has expired: save a fresh Cookie header (see README)")
             return ApiError(status, f"redirected to {loc or '?'}: Cin7 does this for a wrong path or casing")
         body = _parse(raw)
         msg = {

@@ -16,7 +16,7 @@ import json
 import re
 import sys
 
-from . import __version__, auth, output, paging, spec
+from . import __version__, auth, output, runner, spec
 from .client import ApiError, Client, Request, base_url, build_url
 from .ratelimit import DEFAULT_PER_MIN, MAX_PER_MIN, RateLimiter
 from .safety import WriteBlocked, check_write
@@ -51,7 +51,7 @@ TYPES = {"int": int, "bool": _bool, "guid": _guid, "date": str, "string": str}
 TYPE_HINT = {"int": "N", "bool": "true|false", "guid": "GUID", "date": "DATE", "string": "TEXT"}
 
 
-def _common(p: argparse.ArgumentParser, write: bool) -> None:
+def _common(p: argparse.ArgumentParser, write: bool, post_read: bool = False) -> None:
     g = p.add_argument_group("output and pacing")
     g.add_argument("-o", "--output", choices=["json", "table", "csv"], default="json", help="output format")
     g.add_argument("--fields", help="comma-separated columns to keep (table/csv/json rows)")
@@ -65,6 +65,9 @@ def _common(p: argparse.ArgumentParser, write: bool) -> None:
     g.add_argument("--dry-run", action="store_true", help="print the request and exit without calling Cin7")
     g.add_argument("-v", "--verbose", action="store_true", help="log each call to stderr")
     g.add_argument("-q", "--param", type=_kv, action="append", default=[], metavar="KEY=VALUE", help="extra query parameter")
+    p.add_argument("--save-dir", default=".", help="folder for file downloads (web download/export endpoints)")
+    if post_read:
+        p.add_argument("--body", help="JSON query body for this POST read (default {}): inline, @file.json, or -")
     if write:
         w = p.add_argument_group("write (off by default)")
         w.add_argument("--allow-write", action="store_true", help="permit this write after interactive confirmation")
@@ -72,8 +75,14 @@ def _common(p: argparse.ArgumentParser, write: bool) -> None:
 
 
 def _op_parser(sub, op: spec.Operation) -> None:
-    kind = "WRITE" if op.is_write else "read"
-    help_text = f"[{kind}] {op.method} {op.path}  ({op.resource}: {op.title})"
+    if op.is_public:
+        kind = "WRITE" if op.is_write else "read"
+        help_text = f"[{kind}] {op.method} {op.path}  ({op.resource}: {op.title})"
+    elif op.runnable:
+        kind = "internal read" + (" via POST" if op.read_via_post else "")
+        help_text = f"[{kind}] {op.method} {op.path}  ({op.title}; browser session)"
+    else:
+        help_text = f"[internal · not sendable] {op.methods_raw or '?'} {op.path}  ({op.title})"
     p = sub.add_parser(op.name, aliases=list(op.aliases), help=help_text, description=help_text)
     p.set_defaults(op=op)
     g = p.add_argument_group("query parameters")
@@ -90,7 +99,7 @@ def _op_parser(sub, op: spec.Operation) -> None:
         pg = p.add_argument_group("paging")
         pg.add_argument("--all-pages", action="store_true", help=f"follow Page until every {op.list_key} row is in")
         pg.add_argument("--max-pages", type=int, help="stop --all-pages after this many pages")
-    _common(p, op.is_write)
+    _common(p, write=op.is_public and op.is_write, post_read=op.read_via_post)
 
 
 def build_parser(only_group: str | None = "*") -> argparse.ArgumentParser:
@@ -108,7 +117,8 @@ def build_parser(only_group: str | None = "*") -> argparse.ArgumentParser:
 
     ops = top.add_parser("ops", help="list operations (filter by text)")
     ops.add_argument("filter", nargs="?", default="")
-    ops.add_argument("--reads", action="store_true", help="GET operations only")
+    ops.add_argument("--reads", action="store_true", help="sendable reads only")
+    ops.add_argument("--source", choices=["public", "web", "wms", "mes", "report-service"], help="one surface only")
     ops.add_argument("-o", "--output", choices=["json", "table", "csv"], default="table")
 
     desc = top.add_parser("describe", help="show an operation's params and body shapes")
@@ -127,8 +137,9 @@ def build_parser(only_group: str | None = "*") -> argparse.ArgumentParser:
     au_sub = au.add_subparsers(dest="auth_command", metavar="<setup|status|test>")
     au_sub.required = True
     st = au_sub.add_parser("setup", help="save op:// references to the config file (never key values)")
-    st.add_argument("--account-ref", required=True, help="op:// reference to the account id")
-    st.add_argument("--key-ref", required=True, help="op:// reference to the application key")
+    st.add_argument("--account-ref", help="op:// reference to the API account id")
+    st.add_argument("--key-ref", help="op:// reference to the API application key")
+    st.add_argument("--cookie-ref", help="op:// reference to a signed-in browser Cookie header (internal endpoints)")
     st.add_argument("--allow-writes", action="store_true", help="leave CIN7_CLI_READ_ONLY off (default: writes off)")
     au_sub.add_parser("status", help="where credentials come from (no values)")
     au_sub.add_parser("test", help="one GET /me call; prints the company name")
@@ -178,13 +189,17 @@ def _query(args: argparse.Namespace, op: spec.Operation | None) -> dict:
 def _cmd_ops(args) -> int:
     rows = []
     for o in spec.operations():
-        if args.reads and o.is_write:
+        if args.reads and (o.is_write or not o.runnable):
+            continue
+        if args.source and o.source != args.source:
             continue
         line = f"{o.group} {o.name} {o.method} {o.path} {o.resource} {o.title}".lower()
         if args.filter.lower() in line:
             rows.append(
                 {
                     "command": f"cin7 {o.full_name}",
+                    "source": o.source,
+                    "sendable": "yes" if (o.is_public or o.runnable) else "",
                     "method": o.method,
                     "path": o.path,
                     "paged": "yes" if o.paged else "",
@@ -206,6 +221,12 @@ def _cmd_describe(args) -> int:
                 "command": f"cin7 {op.full_name}",
                 "aliases": list(op.aliases),
                 "write": op.is_write,
+                "source": op.source,
+                "sendable": op.is_public or op.runnable,
+                "effect": op.effect or None,
+                "methods_in_web_app": op.methods_raw or None,
+                "body_keys": list(op.body_keys) or None,
+                "web_pages": list(op.pages) or None,
                 "method": op.method,
                 "path": op.path,
                 "resource": op.resource,
@@ -237,8 +258,15 @@ def _cmd_webhooks(args) -> int:
 def _cmd_auth(args) -> int:
     try:
         if args.auth_command == "setup":
-            values = {auth.ACCOUNT_ENV: args.account_ref, auth.KEY_ENV: args.key_ref}
-            if not args.allow_writes:
+            values = auth.read_config()
+            new = {auth.ACCOUNT_ENV: args.account_ref, auth.KEY_ENV: args.key_ref, auth.COOKIE_ENV: args.cookie_ref}
+            if not any(new.values()):
+                print("cin7: pass --account-ref/--key-ref and/or --cookie-ref", file=sys.stderr)
+                return EXIT_USAGE
+            values.update({k: v for k, v in new.items() if v})
+            if args.allow_writes:
+                values.pop("CIN7_CLI_READ_ONLY", None)
+            else:
                 values["CIN7_CLI_READ_ONLY"] = "1"
             path = auth.write_config(values)
             print(f"saved {path} (references only, mode 600)" + ("" if args.allow_writes else "; writes are off"))
@@ -251,7 +279,8 @@ def _cmd_auth(args) -> int:
             ro = (auth.setting("CIN7_CLI_READ_ONLY") or "").strip() not in ("", "0", "false", "no")
             print(f"writes: {'off (CIN7_CLI_READ_ONLY)' if ro else 'gated by --allow-write + typed confirmation'}")
             print(f"API root: {base_url()}")
-            return EXIT_OK if "missing" not in src.values() else EXIT_AUTH
+            api_ok = src[auth.ACCOUNT_ENV] != "missing" and src[auth.KEY_ENV] != "missing"
+            return EXIT_OK if api_ok else EXIT_AUTH
         creds = auth.load()
         client = Client(creds, RateLimiter(float(auth.setting("CIN7_RATE_PER_MIN", str(DEFAULT_PER_MIN)))))
         me = client.send(Request("GET", build_url("/me", {})))
@@ -269,45 +298,43 @@ def _cmd_auth(args) -> int:
 def _run(args, op: spec.Operation, method: str, path: str) -> int:
     query = _query(args, op if args.command != "raw" else None)
     body = _read_body(getattr(args, "body", None))
-    if body is not None and not op.is_write:
-        print("cin7: --body is only for writes", file=sys.stderr)
+    if body is not None and not (op.is_write or op.read_via_post):
+        print("cin7: --body is only for writes and POST reads", file=sys.stderr)
         return EXIT_USAGE
-    root = base_url()
-    req = Request(method, build_url(path, query, root), body)
+    try:
+        runner.check_runnable(op)
+    except runner.NotRunnable as exc:
+        print(f"cin7: {exc}", file=sys.stderr)
+        return EXIT_USAGE
+    req = runner.request_for(op, query, body)
     if args.dry_run:
         print(req.describe())
         if op.is_write:
             print("(write: would need --allow-write and a typed confirmation)", file=sys.stderr)
         return EXIT_OK
     try:
-        check_write(op, req, getattr(args, "allow_write", False), root)
+        check_write(op, req, getattr(args, "allow_write", False), runner.root_for(op))
     except WriteBlocked as exc:
         print(f"cin7: {exc}", file=sys.stderr)
         return EXIT_USAGE
     try:
-        creds = auth.load()
+        client = runner.make_client(op, args.rate, timeout=args.timeout, verbose=args.verbose)
     except auth.AuthError as exc:
         print(f"cin7: {exc}", file=sys.stderr)
         return EXIT_AUTH
-    client = Client(creds, RateLimiter(args.rate), timeout=args.timeout, verbose=args.verbose)
     fields = [f.strip() for f in args.fields.split(",")] if args.fields else None
     try:
-        if getattr(args, "all_pages", False):
-            limit = int(query.get("Limit") or paging.DEFAULT_LIMIT)
-            start = int(query.get("Page") or 1)
-
-            def fetch(page: int, lim: int) -> object:
-                q = {**query, "Page": page, "Limit": lim}
-                return client.send(Request("GET", build_url(path, q, root)))
-
-            data = paging.fetch_all(fetch, op.list_key, limit=limit, start_page=start, max_pages=args.max_pages)
-        else:
-            data = client.send(req)
+        data = runner.fetch(
+            client, op, query, body, all_pages=getattr(args, "all_pages", False), max_pages=getattr(args, "max_pages", None)
+        )
     except ApiError as exc:
         print(f"cin7: {exc}", file=sys.stderr)
         if exc.body is not None and args.verbose:
-            print(creds.redact(json.dumps(exc.body, indent=2, default=str)), file=sys.stderr)
+            print(client.creds.redact(json.dumps(exc.body, indent=2, default=str)), file=sys.stderr)
         return EXIT_API
+    if op.file:
+        print(f"saved {runner.save_file(data, op, getattr(args, 'save_dir', None) or '.')}")
+        return EXIT_OK
     print(output.render(data, args.output, op.list_key, fields))
     return EXIT_OK
 

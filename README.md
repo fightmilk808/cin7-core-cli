@@ -15,7 +15,8 @@ cin7 <group> <operation> [--query-flags] [-o json|table|csv] [--all-pages]
 | | |
 |---|---|
 | Groups | 32 (`sale`, `product`, `purchase`, `production`, `stock`, `customer`, `supplier`, `webhooks`, `me`, `crm`, …) |
-| Operations | 295 · 102 reads · 193 writes |
+| Public operations | 295 · 102 reads · 193 writes |
+| Internal endpoints | 2,177 mapped · 1,365 sendable reads, the rest listed but never sent |
 | Paged lists (`--all-pages`) | 47 |
 | Runtime dependencies | none for the CLI (Python 3.10+ standard library); Textual for the optional TUI |
 
@@ -51,6 +52,37 @@ A [Textual](https://textual.textualize.io) terminal UI over the same spec, clien
 
 **The TUI is read-only, full stop.** Write operations are listed so their request shapes can be read, but there is
 no way to send one from it; the Run button is disabled and the run path refuses them too.
+
+## Internal endpoints (the web app's own API)
+
+Besides the 295 public operations, the spec carries every endpoint from the rebuild map's `endpoints.csv` (2,177),
+plus the WMS, MES and report-service lists, under `web-<module>` groups (`web-mrp`, `web-sale`, `web-production`, …).
+In the TUI they sit in their own purple **INTERNAL** section below the public API; the five main public groups
+(Products, Sales, Transfers · Stock, Production, Purchases) are pinned above everything in bold amber.
+
+| Marker | Meaning |
+|---|---|
+| plain / `↻` / `⬇` | sendable read · read sent as POST with a JSON query body · file download or export (saved to disk) |
+| ✎ (amber) | public API write: viewable, never sent from the TUI |
+| ⛔ (struck through) | internal endpoint the map doesn't call a read (`mrp-run`, `order-release`, …): listed, **never sent** |
+| `·` (dim) | WMS / MES / report-service, reference only |
+
+**Reads only, no exceptions.** An internal endpoint is sendable only if the map marks it a read and its name isn't a
+run, void, release, import, send and so on. There is no flag to send the rest. Print endpoints (which the map says
+may log an audit line in Cin7) are left out too; downloads and exports are in.
+
+Internal endpoints use your signed-in browser session, not the API key. Copy the `Cookie` header from a Cin7 request
+in DevTools (Network tab), store it as a password in 1Password, and save a reference to it:
+
+```bash
+cin7 auth setup --cookie-ref 'op://<vault>/<item>/password'
+cin7 web-mrp mrp-v-mrp --all-pages -o table      # MRP runs
+cin7 web-mrp mrp-results --mrp-id <id>
+cin7 ops --source web --reads mrp
+```
+
+The session expires like the browser's does (the CLI says so on the redirect to the login page). These endpoints are
+unofficial and can change without notice.
 
 ## Auth
 

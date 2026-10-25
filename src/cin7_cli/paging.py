@@ -33,7 +33,7 @@ def fetch_all(
         if not isinstance(body, dict):
             raise ValueError(f"page {page} was not a JSON object")
         batch = body.get(key) or []
-        total = body.get("Total", total)
+        total = body.get("Total", body.get("total", total))
         rows.extend(batch)
         if progress:
             of = f"/{total}" if total is not None else ""

@@ -37,11 +37,31 @@ class Operation:
     request: object = None
     response: object = None
     aliases: tuple[str, ...] = field(default=())
+    source: str = "public"  # public | web | wms | mes | report-service
+    runnable: bool = True
+    effect: str = ""
+    methods_raw: str = ""
+    body_keys: tuple[str, ...] = ()
+    pages: tuple[str, ...] = ()
+    file: bool = False
+
+    @property
+    def is_public(self) -> bool:
+        """Public API v2 (API key) rather than an internal surface."""
+        return self.source == "public"
 
     @property
     def is_write(self) -> bool:
-        """True for anything other than GET."""
-        return self.method not in READ_METHODS
+        """Public: anything but GET. Internal: anything the map doesn't call a read
+        (those are never sent from here)."""
+        if self.is_public:
+            return self.method not in READ_METHODS
+        return not self.runnable
+
+    @property
+    def read_via_post(self) -> bool:
+        """An internal read the web app sends as POST with a JSON query body."""
+        return not self.is_public and self.runnable and self.method == "POST"
 
     @property
     def full_name(self) -> str:
@@ -77,9 +97,21 @@ def load() -> dict:
                 paged=bool(c.get("paged")),
                 request=c.get("request"),
                 response=c.get("response"),
+                source=c.get("source", "public"),
+                runnable=bool(c.get("runnable", True)),
+                effect=c.get("effect", ""),
+                methods_raw=c.get("methods_raw", ""),
+                body_keys=tuple(c.get("body_keys") or ()),
+                pages=tuple(c.get("pages") or ()),
+                file=bool(c.get("file")),
             )
         )
-    return {"operations": _with_aliases(ops), "webhooks": raw.get("webhooks", {}), "base_url": raw["base_url"]}
+    return {
+        "operations": _with_aliases(ops),
+        "webhooks": raw.get("webhooks", {}),
+        "base_url": raw["base_url"],
+        "web_base_url": raw.get("web_base_url", "https://inventory.dearsystems.com"),
+    }
 
 
 def _with_aliases(ops: list[Operation]) -> list[Operation]:
@@ -92,7 +124,7 @@ def _with_aliases(ops: list[Operation]) -> list[Operation]:
     out = []
     for o in ops:
         aliases: tuple[str, ...] = ()
-        if o.method == "GET" and o.name.endswith("list"):
+        if o.is_public and o.method == "GET" and o.name.endswith("list"):
             alias = o.name[: -len("list")] + "get"
             if (o.group, alias) not in names and any(p.name.lower() == "id" for p in o.params):
                 aliases = (alias,)
