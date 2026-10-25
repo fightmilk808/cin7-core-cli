@@ -7,6 +7,7 @@
     cin7 webhook-events [event]              webhook payload shapes
     cin7 tui                                 read-only terminal UI
     cin7 auth setup|status|test              credentials (op:// references)
+    cin7 mcp                                 MCP server on stdio (map tools + public GETs)
 """
 
 from __future__ import annotations
@@ -128,6 +129,8 @@ def build_parser(only_group: str | None = "*") -> argparse.ArgumentParser:
 
     tui = top.add_parser("tui", help="browse and run read operations in a terminal UI (needs the tui extra)")
     tui.add_argument("--rate", type=float, default=float(auth.setting("CIN7_RATE_PER_MIN", str(DEFAULT_PER_MIN))))
+
+    top.add_parser("mcp", help="run an MCP server on stdio: map lookups and public API reads, no writes")
 
     au = top.add_parser("auth", help="set up or check credentials (op:// references in a config file)")
     au_sub = au.add_subparsers(dest="auth_command", metavar="<setup|status|test>")
@@ -482,6 +485,10 @@ def main(argv: list[str] | None = None) -> int:
             print("cin7: the TUI needs Textual: pip install 'cin7-core-cli[tui]'", file=sys.stderr)
             return EXIT_USAGE
         return tui.run(args.rate)
+    if args.command == "mcp":
+        from . import mcp
+
+        return mcp.serve()
     if args.command == "webhook-events":
         return _cmd_webhooks(args)
     if args.command == "raw":

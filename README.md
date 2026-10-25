@@ -32,6 +32,31 @@ Or from a checkout:
 git clone git@github.com:fightmilk808/cin7-core-cli.git && cd cin7-core-cli && pip install -e '.[dev]'
 ```
 
+## MCP server
+
+`cin7 mcp` (or `cin7-mcp`) runs a Model Context Protocol server on stdio, so an agent can use Cin7 directly. It has no write path at all, whatever the CLI settings say, and never sends internal web-app endpoints.
+
+| Tool | Needs credentials | What it does |
+|---|---|---|
+| `search_operations` | no | Find operations by words; public reads rank first |
+| `describe_operation` | no | Parameters, request and response shapes, read/write marking, calling pages |
+| `page_operations` | no | The internal endpoints a web page (e.g. `/MRPList`) calls |
+| `list_groups` | no | Groups with read and write counts |
+| `auth_status` | no | Where the credentials come from (never the values) |
+| `read` | yes | One public API v2 GET, at most 200 rows; `all_pages` walks up to 10 pages |
+
+Claude Code:
+
+```bash
+claude mcp add cin7-core -e CIN7_ACCOUNT_ID=op://Vault/Cin7/username -e CIN7_APP_KEY=op://Vault/Cin7/credential -- cin7-mcp
+```
+
+`op://` references resolve once per server start (one 1Password approval). The map tools work without any credentials.
+
+## Agent skill
+
+[skills/cin7-core/SKILL.md](skills/cin7-core/SKILL.md) teaches an agent to look endpoints up before calling them, read through the MCP server or CLI, and keep to the read-only rules. Copy the folder into `~/.claude/skills/` (or your agent's skills folder).
+
 ## TUI
 
 ```bash
