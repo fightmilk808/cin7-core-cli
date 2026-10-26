@@ -96,7 +96,7 @@ More: [docs/GUIDE.md](docs/GUIDE.md#tui).
 claude mcp add cin7-core -e CIN7_ACCOUNT_ID=op://Vault/Cin7/username -e CIN7_APP_KEY=op://Vault/Cin7/credential -- cin7-mcp
 ```
 
-🧠 Agent skill: [skills/cin7-core/SKILL.md](skills/cin7-core/SKILL.md) → copy to `~/.claude/skills/`.
+🧠 Agent skills, copy to `~/.claude/skills/`: [cin7-core](skills/cin7-core/SKILL.md) (look things up) · [cin7-mirror-db](skills/cin7-mirror-db/SKILL.md) (mirror Cin7 into Postgres/SQLite). More skills over the map live in [cin7-core-rebuild](https://github.com/fightmilk808/cin7-core-rebuild#agent-skills).
 
 ## Safety
 
