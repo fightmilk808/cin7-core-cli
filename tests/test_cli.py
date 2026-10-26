@@ -8,7 +8,7 @@ import stat
 
 import pytest
 
-from cin7_cli import cli, safety, spec
+from cin7_cli import cli, paging, safety, spec
 from cin7_cli.ratelimit import RateLimiter
 
 from .conftest import ACCOUNT, KEY
@@ -682,3 +682,25 @@ def test_too_many_combinations_refused(mock, capsys):
     vals = ",".join(["VOIDED", "NOT AVAILABLE", "PICKED", "PICKING", "NOT PICKED", "PARTIALLY PICKED"])
     code, _, err = run(capsys, "sale", "list", "--combined-pick-status", vals, "--combined-pack-status", "VOIDED,NOT AVAILABLE,PACKED")
     assert code == 2 and "too many" in err and mock.requests == []
+
+
+def test_all_pages_stops_at_the_default_cap(mock, capsys):
+    # A list as big as product availability (170+ pages) is not walked to the end on a
+    # key the freight pipeline shares.
+    mock.routes[("GET", "/saleList")] = lambda r: (200, {"Total": 99999, "Page": 1, "SaleList": [{}] * 5}, {})
+    code, out, err = run(capsys, "sale", "list", "--limit", "5", "--all-pages")
+    data = json.loads(out)
+    assert code == 0 and len(mock.requests) == paging.DEFAULT_MAX_PAGES
+    assert data["Truncated"] is True and data["Pages"] == paging.DEFAULT_MAX_PAGES
+    assert "shared with freight" in err
+
+
+def test_a_walk_that_finishes_is_not_truncated(mock, capsys):
+    mock.routes[("GET", "/saleList")] = lambda r: (200, {"Total": 3, "Page": 1, "SaleList": [{}] * 3}, {})
+    code, out, _ = run(capsys, "sale", "list", "--limit", "5", "--all-pages")
+    assert code == 0 and json.loads(out)["Truncated"] is False
+
+
+def test_max_pages_over_the_hard_limit_is_refused_unsent(mock, capsys):
+    code, _, err = run(capsys, "sale", "list", "--all-pages", "--max-pages", str(paging.HARD_MAX_PAGES + 1))
+    assert code != 0 and mock.requests == [] and "warehouse" in err
