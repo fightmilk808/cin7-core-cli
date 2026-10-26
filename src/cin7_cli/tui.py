@@ -46,7 +46,7 @@ from textual.widgets import (
     Tree,
 )
 
-from . import auth, output, printing, ratelimit, resolve, rowtools, runner, spec
+from . import auth, output, paging, printing, ratelimit, resolve, rowtools, runner, spec
 from .cli import TYPE_HINT, TYPES
 from .client import ApiError, base_url
 from .safety import PRINT_NOTE
@@ -519,7 +519,7 @@ class Cin7Tui(App):
                 yield Static("", id="op-meta")
                 yield VerticalScroll(id="form")
                 with Horizontal(id="actions"):
-                    yield Checkbox("All pages", id="all-pages", disabled=True)
+                    yield Checkbox(f"All pages (max {paging.DEFAULT_MAX_PAGES})", id="all-pages", disabled=True)
                     yield Button("Run  ^R", id="run", variant="primary", disabled=True)
                     yield Button("Export CSV  ^E", id="export", disabled=True)
                 yield Static("", id="status")
@@ -939,6 +939,12 @@ class Cin7Tui(App):
                 path = runner.save_file(data, op, self.export_dir)
                 data = {"saved": path}
                 self.call_from_thread(self._record_download, op.full_name, path)
+            if isinstance(data, dict) and data.get("Truncated"):
+                self.call_from_thread(
+                    self.notify,
+                    f"Stopped after {data.get('Pages')} pages ({len(data.get(op.list_key) or [])} of "
+                    f"{data.get('Total')} rows): {paging.WAREHOUSE_HINT}",
+                    severity="warning", timeout=12)
         except (ApiError, auth.AuthError, ValueError, runner.NotRunnable) as exc:
             self.call_from_thread(self._failed, str(exc))
             return

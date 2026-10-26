@@ -17,7 +17,7 @@ import json
 import re
 import sys
 
-from . import __version__, auth, output, printing, resolve, runner, spec
+from . import __version__, auth, output, paging, printing, resolve, runner, spec
 from .client import ApiError, Client, Request, base_url, build_url
 from .ratelimit import DEFAULT_PER_MIN, MAX_PER_MIN, RateLimiter
 from .safety import WriteBlocked, check_print, check_write
@@ -94,8 +94,12 @@ def _op_parser(sub, op: spec.Operation) -> None:
         )
     if op.paged:
         pg = p.add_argument_group("paging")
-        pg.add_argument("--all-pages", action="store_true", help=f"follow Page until every {op.list_key} row is in")
-        pg.add_argument("--max-pages", type=int, help="stop --all-pages after this many pages")
+        pg.add_argument("--all-pages", action="store_true",
+                        help=f"follow Page until every {op.list_key} row is in, or "
+                             f"{paging.DEFAULT_MAX_PAGES} pages (the key is shared with freight)")
+        pg.add_argument("--max-pages", type=int,
+                        help=f"stop --all-pages after this many pages (default "
+                             f"{paging.DEFAULT_MAX_PAGES}, at most {paging.HARD_MAX_PAGES})")
     _common(p, write=op.is_public and op.is_write, post_read=op.read_via_post)
 
 
@@ -439,6 +443,12 @@ def _run(args, op: spec.Operation, method: str, path: str) -> int:
     except WriteBlocked as exc:
         print(f"cin7: {exc}", file=sys.stderr)
         return EXIT_USAGE
+    if getattr(args, "all_pages", False):
+        try:
+            paging.page_cap(getattr(args, "max_pages", None))
+        except ValueError as exc:
+            print(f"cin7: {exc}", file=sys.stderr)
+            return EXIT_USAGE
     try:
         client = runner.make_client(op, args.rate, timeout=args.timeout, verbose=args.verbose)
     except auth.AuthError as exc:
