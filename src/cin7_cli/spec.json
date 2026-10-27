@@ -31245,15 +31245,56 @@
    "name": "customer-list-v-customer-list",
    "resource": "/api/CustomerList_Index_vCustomerList",
    "title": "api \u00b7 read",
-   "method": "?",
+   "method": "GET",
    "path": "/api/CustomerList_Index_vCustomerList",
-   "params": {},
-   "list_key": null,
-   "paged": false,
-   "runnable": false,
+   "params": {
+    "IsActive": {
+     "type": "bool",
+     "flag": "is-active",
+     "choices": [
+      "true",
+      "false"
+     ]
+    },
+    "filter": {
+     "type": "string",
+     "flag": "filter"
+    },
+    "fromDate": {
+     "type": "string",
+     "flag": "from-date"
+    },
+    "lang": {
+     "type": "string",
+     "flag": "lang"
+    },
+    "search": {
+     "type": "string",
+     "flag": "search"
+    },
+    "toDate": {
+     "type": "string",
+     "flag": "to-date"
+    },
+    "page": {
+     "type": "int",
+     "flag": "page"
+    },
+    "start": {
+     "type": "int",
+     "flag": "start"
+    },
+    "limit": {
+     "type": "int",
+     "flag": "limit"
+    }
+   },
+   "list_key": "root",
+   "paged": true,
+   "runnable": true,
    "file": false,
    "effect": "read",
-   "methods_raw": "",
+   "methods_raw": "REST(GET read; POST/PUT/DELETE on store.sync)",
    "body_keys": [],
    "pages": [
     "/CustomerList"
@@ -32429,6 +32470,34 @@
    "source": "web",
    "group": "web-integrations",
    "group_title": "Web \u00b7 Integrations",
+   "name": "dear-api-api-explorer",
+   "resource": "/api/DearApi_Index_ApiExplorer",
+   "title": "api \u00b7 write",
+   "method": "POST",
+   "path": "/api/DearApi_Index_ApiExplorer",
+   "params": {},
+   "list_key": null,
+   "paged": false,
+   "runnable": false,
+   "file": false,
+   "effect": "write",
+   "methods_raw": "POST",
+   "body_keys": [
+    "ApiApplicationId",
+    "Method",
+    "Payload",
+    "Url"
+   ],
+   "pages": [
+    "/ExternalApi"
+   ],
+   "request": null,
+   "response": null
+  },
+  {
+   "source": "web",
+   "group": "web-integrations",
+   "group_title": "Web \u00b7 Integrations",
    "name": "dear-api-dashboard-summary",
    "resource": "/api/DearApi_Index_Dashboard_Summary",
    "title": "api \u00b7 read",
@@ -32712,6 +32781,29 @@
    "file": false,
    "effect": "read+write",
    "methods_raw": "REST(GET read; POST/PUT/DELETE on store.sync)",
+   "body_keys": [],
+   "pages": [
+    "/DearPos"
+   ],
+   "request": null,
+   "response": null
+  },
+  {
+   "source": "web",
+   "group": "web-integrations",
+   "group_title": "Web \u00b7 Integrations",
+   "name": "dear-pos-dashboard",
+   "resource": "/api/DearPos_Index_Dashboard",
+   "title": "api \u00b7 read",
+   "method": "GET",
+   "path": "/api/DearPos_Index_Dashboard",
+   "params": {},
+   "list_key": null,
+   "paged": false,
+   "runnable": true,
+   "file": false,
+   "effect": "read",
+   "methods_raw": "GET",
    "body_keys": [],
    "pages": [
     "/DearPos"
@@ -35098,7 +35190,7 @@
    "group_title": "Web \u00b7 Purchase",
    "name": "document-extraction-map-extracted-document",
    "resource": "/api/DocumentExtraction_Index_MapExtractedDocument",
-   "title": "api \u00b7 read",
+   "title": "api \u00b7 read+write",
    "method": "GET",
    "path": "/api/DocumentExtraction_Index_MapExtractedDocument",
    "params": {
@@ -35115,8 +35207,8 @@
    "paged": false,
    "runnable": true,
    "file": false,
-   "effect": "read",
-   "methods_raw": "GET",
+   "effect": "read+write",
+   "methods_raw": "GET PATCH",
    "body_keys": [],
    "pages": [
     "/DocumentExtraction",
@@ -35136,15 +35228,40 @@
    "name": "document-extraction-v-extracted-document",
    "resource": "/api/DocumentExtraction_Index_vExtractedDocument",
    "title": "api \u00b7 read",
-   "method": "?",
+   "method": "GET",
    "path": "/api/DocumentExtraction_Index_vExtractedDocument",
-   "params": {},
-   "list_key": null,
-   "paged": false,
-   "runnable": false,
+   "params": {
+    "DocumentName": {
+     "type": "string",
+     "flag": "document-name"
+    },
+    "entityType": {
+     "type": "string",
+     "flag": "entity-type"
+    },
+    "nextPageToken": {
+     "type": "string",
+     "flag": "next-page-token"
+    },
+    "page": {
+     "type": "int",
+     "flag": "page"
+    },
+    "start": {
+     "type": "int",
+     "flag": "start"
+    },
+    "limit": {
+     "type": "int",
+     "flag": "limit"
+    }
+   },
+   "list_key": "Documents",
+   "paged": true,
+   "runnable": true,
    "file": false,
    "effect": "read",
-   "methods_raw": "",
+   "methods_raw": "DELETE GET REST(GET read; POST/PUT/DELETE on store.sync)",
    "body_keys": [],
    "pages": [
     "/DocumentExtraction",
@@ -37521,15 +37638,40 @@
    "name": "expense-claim-email",
    "resource": "/api/ExpenseClaim_Index_Email",
    "title": "api \u00b7 write",
-   "method": "?",
+   "method": "POST REST(GET read; POST/PUT/DELETE on store.sync)",
    "path": "/api/ExpenseClaim_Index_Email",
-   "params": {},
+   "params": {
+    "AttachmentID": {
+     "type": "string",
+     "flag": "attachment-id"
+    },
+    "EmailID": {
+     "type": "string",
+     "flag": "email-id"
+    },
+    "PrintEntityID": {
+     "type": "string",
+     "flag": "print-entity-id"
+    },
+    "PrintTemplateID": {
+     "type": "string",
+     "flag": "print-template-id"
+    },
+    "TaskID": {
+     "type": "string",
+     "flag": "task-id"
+    },
+    "parentSaleTaskID": {
+     "type": "string",
+     "flag": "parent-sale-task-id"
+    }
+   },
    "list_key": null,
    "paged": false,
    "runnable": false,
    "file": false,
    "effect": "write",
-   "methods_raw": "",
+   "methods_raw": "POST REST(GET read; POST/PUT/DELETE on store.sync)",
    "body_keys": [],
    "pages": [],
    "request": null,
@@ -37812,15 +37954,40 @@
    "name": "expense-claim-receipt-email",
    "resource": "/api/ExpenseClaimReceipt_Index_Email",
    "title": "api \u00b7 write",
-   "method": "?",
+   "method": "POST REST(GET read; POST/PUT/DELETE on store.sync)",
    "path": "/api/ExpenseClaimReceipt_Index_Email",
-   "params": {},
+   "params": {
+    "AttachmentID": {
+     "type": "string",
+     "flag": "attachment-id"
+    },
+    "EmailID": {
+     "type": "string",
+     "flag": "email-id"
+    },
+    "PrintEntityID": {
+     "type": "string",
+     "flag": "print-entity-id"
+    },
+    "PrintTemplateID": {
+     "type": "string",
+     "flag": "print-template-id"
+    },
+    "TaskID": {
+     "type": "string",
+     "flag": "task-id"
+    },
+    "parentSaleTaskID": {
+     "type": "string",
+     "flag": "parent-sale-task-id"
+    }
+   },
    "list_key": null,
    "paged": false,
    "runnable": false,
    "file": false,
    "effect": "write",
-   "methods_raw": "",
+   "methods_raw": "POST REST(GET read; POST/PUT/DELETE on store.sync)",
    "body_keys": [],
    "pages": [],
    "request": null,
@@ -40924,15 +41091,20 @@
    "name": "g-suites-directory",
    "resource": "/api/GSuites_Index_Directory",
    "title": "api \u00b7 read",
-   "method": "?",
+   "method": "GET",
    "path": "/api/GSuites_Index_Directory",
-   "params": {},
+   "params": {
+    "parentId": {
+     "type": "string",
+     "flag": "parent-id"
+    }
+   },
    "list_key": null,
    "paged": false,
-   "runnable": false,
+   "runnable": true,
    "file": false,
    "effect": "read",
-   "methods_raw": "",
+   "methods_raw": "GET",
    "body_keys": [],
    "pages": [],
    "request": null,
@@ -40945,15 +41117,49 @@
    "name": "g-suites-files",
    "resource": "/api/GSuites_Index_Files",
    "title": "api \u00b7 read",
-   "method": "?",
+   "method": "GET",
    "path": "/api/GSuites_Index_Files",
+   "params": {
+    "UploadToID": {
+     "type": "string",
+     "flag": "upload-to-id"
+    },
+    "pageName": {
+     "type": "string",
+     "flag": "page-name"
+    },
+    "parentId": {
+     "type": "string",
+     "flag": "parent-id"
+    }
+   },
+   "list_key": null,
+   "paged": false,
+   "runnable": true,
+   "file": false,
+   "effect": "read",
+   "methods_raw": "GET POST",
+   "body_keys": [],
+   "pages": [],
+   "request": null,
+   "response": null
+  },
+  {
+   "source": "web",
+   "group": "web-integrations",
+   "group_title": "Web \u00b7 Integrations",
+   "name": "g-suites-files-get-access-token",
+   "resource": "/api/GSuites_Index_Files/GetAccessToken",
+   "title": "api \u00b7 read",
+   "method": "GET",
+   "path": "/api/GSuites_Index_Files/GetAccessToken",
    "params": {},
    "list_key": null,
    "paged": false,
    "runnable": false,
    "file": false,
    "effect": "read",
-   "methods_raw": "",
+   "methods_raw": "GET",
    "body_keys": [],
    "pages": [],
    "request": null,
@@ -41922,11 +42128,278 @@
    "source": "web",
    "group": "web-other",
    "group_title": "Web \u00b7 Other",
+   "name": "inventoro-settings-locations",
+   "resource": "/api/InventoroSettings_Locations",
+   "title": "api \u00b7 read+write",
+   "method": "GET",
+   "path": "/api/InventoroSettings_Locations",
+   "params": {
+    "customFilterId": {
+     "type": "string",
+     "flag": "custom-filter-id"
+    },
+    "search": {
+     "type": "string",
+     "flag": "search"
+    },
+    "showMode": {
+     "type": "bool",
+     "flag": "show-mode",
+     "choices": [
+      "true",
+      "false"
+     ]
+    },
+    "updateOnlyEmpty": {
+     "type": "string",
+     "flag": "update-only-empty"
+    }
+   },
+   "list_key": null,
+   "paged": false,
+   "runnable": true,
+   "file": false,
+   "effect": "read+write",
+   "methods_raw": "PUT REST(GET read; POST/PUT/DELETE on store.sync)",
+   "body_keys": [],
+   "pages": [],
+   "request": null,
+   "response": null
+  },
+  {
+   "source": "web",
+   "group": "web-other",
+   "group_title": "Web \u00b7 Other",
+   "name": "inventoro-settings-locations-boms",
+   "resource": "/api/InventoroSettings_Locations/boms",
+   "title": "api \u00b7 read",
+   "method": "?",
+   "path": "/api/InventoroSettings_Locations/boms",
+   "params": {},
+   "list_key": null,
+   "paged": false,
+   "runnable": false,
+   "file": false,
+   "effect": "read",
+   "methods_raw": "",
+   "body_keys": [],
+   "pages": [],
+   "request": null,
+   "response": null
+  },
+  {
+   "source": "web",
+   "group": "web-other",
+   "group_title": "Web \u00b7 Other",
+   "name": "inventoro-settings-locations-recalculate-hierarchy",
+   "resource": "/api/InventoroSettings_Locations/RecalculateHierarchy",
+   "title": "api \u00b7 write",
+   "method": "POST",
+   "path": "/api/InventoroSettings_Locations/RecalculateHierarchy",
+   "params": {},
+   "list_key": null,
+   "paged": false,
+   "runnable": false,
+   "file": false,
+   "effect": "write",
+   "methods_raw": "POST",
+   "body_keys": [],
+   "pages": [],
+   "request": null,
+   "response": null
+  },
+  {
+   "source": "web",
+   "group": "web-other",
+   "group_title": "Web \u00b7 Other",
+   "name": "inventoro-settings-logs",
+   "resource": "/api/InventoroSettings_Logs",
+   "title": "api \u00b7 read",
+   "method": "GET",
+   "path": "/api/InventoroSettings_Logs",
+   "params": {
+    "endDate": {
+     "type": "string",
+     "flag": "end-date"
+    },
+    "startDate": {
+     "type": "string",
+     "flag": "start-date"
+    },
+    "username": {
+     "type": "string",
+     "flag": "username"
+    }
+   },
+   "list_key": null,
+   "paged": false,
+   "runnable": true,
+   "file": false,
+   "effect": "read",
+   "methods_raw": "REST(GET read; POST/PUT/DELETE on store.sync)",
+   "body_keys": [],
+   "pages": [],
+   "request": null,
+   "response": null
+  },
+  {
+   "source": "web",
+   "group": "web-other",
+   "group_title": "Web \u00b7 Other",
+   "name": "inventoro-settings-logs-filters-users",
+   "resource": "/api/InventoroSettings_Logs/filters/users",
+   "title": "api \u00b7 read",
+   "method": "GET",
+   "path": "/api/InventoroSettings_Logs/filters/users",
+   "params": {
+    "Name": {
+     "type": "string",
+     "flag": "name"
+    }
+   },
+   "list_key": null,
+   "paged": false,
+   "runnable": true,
+   "file": false,
+   "effect": "read",
+   "methods_raw": "REST(GET read; POST/PUT/DELETE on store.sync)",
+   "body_keys": [],
+   "pages": [],
+   "request": null,
+   "response": null
+  },
+  {
+   "source": "web",
+   "group": "web-other",
+   "group_title": "Web \u00b7 Other",
+   "name": "inventoro-settings-logs-products-details",
+   "resource": "/api/InventoroSettings_Logs/products/details",
+   "title": "api \u00b7 read",
+   "method": "?",
+   "path": "/api/InventoroSettings_Logs/products/details",
+   "params": {
+    "logID": {
+     "type": "string",
+     "flag": "log-id"
+    }
+   },
+   "list_key": null,
+   "paged": false,
+   "runnable": false,
+   "file": false,
+   "effect": "read",
+   "methods_raw": "",
+   "body_keys": [],
+   "pages": [],
+   "request": null,
+   "response": null
+  },
+  {
+   "source": "web",
+   "group": "web-other",
+   "group_title": "Web \u00b7 Other",
    "name": "inventoro-settings-product-rules",
    "resource": "/api/InventoroSettings_ProductRules",
    "title": "api \u00b7 read",
-   "method": "?",
+   "method": "GET",
    "path": "/api/InventoroSettings_ProductRules",
+   "params": {
+    "customFilterId": {
+     "type": "string",
+     "flag": "custom-filter-id"
+    },
+    "search": {
+     "type": "string",
+     "flag": "search"
+    },
+    "showMode": {
+     "type": "bool",
+     "flag": "show-mode",
+     "choices": [
+      "true",
+      "false"
+     ]
+    }
+   },
+   "list_key": null,
+   "paged": false,
+   "runnable": true,
+   "file": false,
+   "effect": "read",
+   "methods_raw": "DELETE REST(GET read; POST/PUT/DELETE on store.sync)",
+   "body_keys": [],
+   "pages": [],
+   "request": null,
+   "response": null
+  },
+  {
+   "source": "web",
+   "group": "web-other",
+   "group_title": "Web \u00b7 Other",
+   "name": "inventoro-settings-product-rules-affected-products",
+   "resource": "/api/InventoroSettings_ProductRules/AffectedProducts",
+   "title": "api \u00b7 read",
+   "method": "GET",
+   "path": "/api/InventoroSettings_ProductRules/AffectedProducts",
+   "params": {
+    "customFilterId": {
+     "type": "string",
+     "flag": "custom-filter-id"
+    },
+    "search": {
+     "type": "string",
+     "flag": "search"
+    },
+    "showMode": {
+     "type": "bool",
+     "flag": "show-mode",
+     "choices": [
+      "true",
+      "false"
+     ]
+    }
+   },
+   "list_key": null,
+   "paged": false,
+   "runnable": true,
+   "file": false,
+   "effect": "read",
+   "methods_raw": "REST(GET read; POST/PUT/DELETE on store.sync)",
+   "body_keys": [],
+   "pages": [],
+   "request": null,
+   "response": null
+  },
+  {
+   "source": "web",
+   "group": "web-other",
+   "group_title": "Web \u00b7 Other",
+   "name": "inventoro-settings-product-rules-product-counts",
+   "resource": "/api/InventoroSettings_ProductRules/ProductCounts",
+   "title": "api \u00b7 read",
+   "method": "POST",
+   "path": "/api/InventoroSettings_ProductRules/ProductCounts",
+   "params": {},
+   "list_key": null,
+   "paged": false,
+   "runnable": false,
+   "file": false,
+   "effect": "read",
+   "methods_raw": "POST",
+   "body_keys": [],
+   "pages": [],
+   "request": null,
+   "response": null
+  },
+  {
+   "source": "web",
+   "group": "web-other",
+   "group_title": "Web \u00b7 Other",
+   "name": "inventoro-settings-product-rules-product-filters",
+   "resource": "/api/InventoroSettings_ProductRules/ProductFilters",
+   "title": "api \u00b7 read",
+   "method": "?",
+   "path": "/api/InventoroSettings_ProductRules/ProductFilters",
    "params": {},
    "list_key": null,
    "paged": false,
@@ -41946,7 +42419,7 @@
    "name": "inventoro-settings-product-rules-reorder",
    "resource": "/api/InventoroSettings_ProductRules/Reorder",
    "title": "api \u00b7 read",
-   "method": "?",
+   "method": "PUT",
    "path": "/api/InventoroSettings_ProductRules/Reorder",
    "params": {},
    "list_key": null,
@@ -41954,7 +42427,155 @@
    "runnable": false,
    "file": false,
    "effect": "read",
+   "methods_raw": "PUT",
+   "body_keys": [],
+   "pages": [],
+   "request": null,
+   "response": null
+  },
+  {
+   "source": "web",
+   "group": "web-other",
+   "group_title": "Web \u00b7 Other",
+   "name": "inventoro-settings-products",
+   "resource": "/api/InventoroSettings_Products",
+   "title": "api \u00b7 read",
+   "method": "GET",
+   "path": "/api/InventoroSettings_Products",
+   "params": {
+    "customFilterId": {
+     "type": "string",
+     "flag": "custom-filter-id"
+    },
+    "isBundle": {
+     "type": "bool",
+     "flag": "is-bundle",
+     "choices": [
+      "true",
+      "false"
+     ]
+    },
+    "search": {
+     "type": "string",
+     "flag": "search"
+    },
+    "segmentID": {
+     "type": "string",
+     "flag": "segment-id"
+    },
+    "showMode": {
+     "type": "bool",
+     "flag": "show-mode",
+     "choices": [
+      "true",
+      "false"
+     ]
+    }
+   },
+   "list_key": null,
+   "paged": false,
+   "runnable": true,
+   "file": false,
+   "effect": "read",
+   "methods_raw": "REST(GET read; POST/PUT/DELETE on store.sync)",
+   "body_keys": [],
+   "pages": [],
+   "request": null,
+   "response": null
+  },
+  {
+   "source": "web",
+   "group": "web-other",
+   "group_title": "Web \u00b7 Other",
+   "name": "inventoro-settings-products-update",
+   "resource": "/api/InventoroSettings_Products/update",
+   "title": "api \u00b7 write",
+   "method": "PUT",
+   "path": "/api/InventoroSettings_Products/update",
+   "params": {},
+   "list_key": null,
+   "paged": false,
+   "runnable": false,
+   "file": false,
+   "effect": "write",
+   "methods_raw": "PUT",
+   "body_keys": [],
+   "pages": [],
+   "request": null,
+   "response": null
+  },
+  {
+   "source": "web",
+   "group": "web-other",
+   "group_title": "Web \u00b7 Other",
+   "name": "inventoro-settings-product-segments",
+   "resource": "/api/InventoroSettings_ProductSegments",
+   "title": "api \u00b7 read",
+   "method": "?",
+   "path": "/api/InventoroSettings_ProductSegments",
+   "params": {
+    "id": {
+     "type": "string",
+     "flag": "id"
+    }
+   },
+   "list_key": null,
+   "paged": false,
+   "runnable": false,
+   "file": false,
+   "effect": "read",
    "methods_raw": "",
+   "body_keys": [],
+   "pages": [],
+   "request": null,
+   "response": null
+  },
+  {
+   "source": "web",
+   "group": "web-other",
+   "group_title": "Web \u00b7 Other",
+   "name": "inventoro-settings-reference-data",
+   "resource": "/api/InventoroSettings_ReferenceData",
+   "title": "api \u00b7 read",
+   "method": "?",
+   "path": "/api/InventoroSettings_ReferenceData",
+   "params": {},
+   "list_key": null,
+   "paged": false,
+   "runnable": false,
+   "file": false,
+   "effect": "read",
+   "methods_raw": "",
+   "body_keys": [],
+   "pages": [],
+   "request": null,
+   "response": null
+  },
+  {
+   "source": "web",
+   "group": "web-other",
+   "group_title": "Web \u00b7 Other",
+   "name": "inventoro-settings-reference-data-predecessors",
+   "resource": "/api/InventoroSettings_ReferenceData/Predecessors",
+   "title": "api \u00b7 read",
+   "method": "GET",
+   "path": "/api/InventoroSettings_ReferenceData/Predecessors",
+   "params": {
+    "locationID": {
+     "type": "string",
+     "flag": "location-id"
+    },
+    "productID": {
+     "type": "string",
+     "flag": "product-id"
+    }
+   },
+   "list_key": null,
+   "paged": false,
+   "runnable": true,
+   "file": false,
+   "effect": "read",
+   "methods_raw": "REST(GET read; POST/PUT/DELETE on store.sync)",
    "body_keys": [],
    "pages": [],
    "request": null,
@@ -41985,18 +42606,65 @@
    "source": "web",
    "group": "web-other",
    "group_title": "Web \u00b7 Other",
-   "name": "inventoro-settings-suppliers",
-   "resource": "/api/InventoroSettings_Suppliers",
-   "title": "api \u00b7 read",
-   "method": "?",
-   "path": "/api/InventoroSettings_Suppliers",
-   "params": {},
+   "name": "inventoro-settings-strategy",
+   "resource": "/api/InventoroSettings_Strategy",
+   "title": "api \u00b7 write",
+   "method": "PUT",
+   "path": "/api/InventoroSettings_Strategy",
+   "params": {
+    "strategy": {
+     "type": "string",
+     "flag": "strategy"
+    }
+   },
    "list_key": null,
    "paged": false,
    "runnable": false,
    "file": false,
+   "effect": "write",
+   "methods_raw": "PUT",
+   "body_keys": [],
+   "pages": [],
+   "request": null,
+   "response": null
+  },
+  {
+   "source": "web",
+   "group": "web-other",
+   "group_title": "Web \u00b7 Other",
+   "name": "inventoro-settings-suppliers",
+   "resource": "/api/InventoroSettings_Suppliers",
+   "title": "api \u00b7 read",
+   "method": "GET",
+   "path": "/api/InventoroSettings_Suppliers",
+   "params": {
+    "customFilterId": {
+     "type": "string",
+     "flag": "custom-filter-id"
+    },
+    "search": {
+     "type": "string",
+     "flag": "search"
+    },
+    "showMode": {
+     "type": "bool",
+     "flag": "show-mode",
+     "choices": [
+      "true",
+      "false"
+     ]
+    },
+    "updateOnlyEmpty": {
+     "type": "string",
+     "flag": "update-only-empty"
+    }
+   },
+   "list_key": null,
+   "paged": false,
+   "runnable": true,
+   "file": false,
    "effect": "read",
-   "methods_raw": "",
+   "methods_raw": "PUT REST(GET read; POST/PUT/DELETE on store.sync)",
    "body_keys": [],
    "pages": [],
    "request": null,
@@ -42305,15 +42973,32 @@
    "name": "issue-to-production-list-v-issue-to-production-list",
    "resource": "/api/IssueToProductionList_Index_vIssueToProductionList",
    "title": "api \u00b7 read",
-   "method": "?",
+   "method": "GET",
    "path": "/api/IssueToProductionList_Index_vIssueToProductionList",
-   "params": {},
-   "list_key": null,
-   "paged": false,
-   "runnable": false,
+   "params": {
+    "search": {
+     "type": "string",
+     "flag": "search"
+    },
+    "page": {
+     "type": "int",
+     "flag": "page"
+    },
+    "start": {
+     "type": "int",
+     "flag": "start"
+    },
+    "limit": {
+     "type": "int",
+     "flag": "limit"
+    }
+   },
+   "list_key": "root",
+   "paged": true,
+   "runnable": true,
    "file": false,
    "effect": "read",
-   "methods_raw": "",
+   "methods_raw": "REST(GET read; POST/PUT/DELETE on store.sync)",
    "body_keys": [],
    "pages": [
     "/IssueToProductionList"
@@ -47707,9 +48392,29 @@
    "method": "GET",
    "path": "/api/Opportunity_Index_Email",
    "params": {
+    "AttachmentID": {
+     "type": "string",
+     "flag": "attachment-id"
+    },
+    "EmailID": {
+     "type": "string",
+     "flag": "email-id"
+    },
+    "PrintEntityID": {
+     "type": "string",
+     "flag": "print-entity-id"
+    },
+    "PrintTemplateID": {
+     "type": "string",
+     "flag": "print-template-id"
+    },
     "TaskID": {
      "type": "string",
      "flag": "task-id"
+    },
+    "parentSaleTaskID": {
+     "type": "string",
+     "flag": "parent-sale-task-id"
     }
    },
    "list_key": null,
@@ -48224,15 +48929,68 @@
    "name": "opportunity-list-v-opportunity",
    "resource": "/api/OpportunityList_Index_vOpportunity",
    "title": "api \u00b7 read",
-   "method": "?",
+   "method": "GET",
    "path": "/api/OpportunityList_Index_vOpportunity",
-   "params": {},
-   "list_key": null,
-   "paged": false,
-   "runnable": false,
+   "params": {
+    "endDate": {
+     "type": "string",
+     "flag": "end-date"
+    },
+    "lang": {
+     "type": "string",
+     "flag": "lang"
+    },
+    "limit": {
+     "type": "string",
+     "flag": "limit"
+    },
+    "opportunityOrSale": {
+     "type": "string",
+     "flag": "opportunity-or-sale"
+    },
+    "opportunityStatus": {
+     "type": "string",
+     "flag": "opportunity-status"
+    },
+    "saleFilter": {
+     "type": "string",
+     "flag": "sale-filter"
+    },
+    "salesRep": {
+     "type": "string",
+     "flag": "sales-rep"
+    },
+    "search": {
+     "type": "string",
+     "flag": "search"
+    },
+    "showAll": {
+     "type": "bool",
+     "flag": "show-all",
+     "choices": [
+      "true",
+      "false"
+     ]
+    },
+    "startDate": {
+     "type": "string",
+     "flag": "start-date"
+    },
+    "page": {
+     "type": "int",
+     "flag": "page"
+    },
+    "start": {
+     "type": "int",
+     "flag": "start"
+    }
+   },
+   "list_key": "root",
+   "paged": true,
+   "runnable": true,
    "file": false,
    "effect": "read",
-   "methods_raw": "",
+   "methods_raw": "REST(GET read; POST/PUT/DELETE on store.sync)",
    "body_keys": [],
    "pages": [
     "/OpportunityList"
@@ -50526,15 +51284,20 @@
    "name": "product-costing-method",
    "resource": "/api/Product_Index_CostingMethod",
    "title": "api \u00b7 write",
-   "method": "POST",
+   "method": "GET POST",
    "path": "/api/Product_Index_CostingMethod",
-   "params": {},
+   "params": {
+    "productId": {
+     "type": "string",
+     "flag": "product-id"
+    }
+   },
    "list_key": null,
    "paged": false,
    "runnable": false,
    "file": false,
    "effect": "write",
-   "methods_raw": "POST",
+   "methods_raw": "GET POST",
    "body_keys": [],
    "pages": [
     "/FixedAssetType",
@@ -52615,15 +53378,40 @@
    "name": "production-order-email",
    "resource": "/api/ProductionOrder_Index_Email",
    "title": "api \u00b7 write",
-   "method": "?",
+   "method": "POST REST(GET read; POST/PUT/DELETE on store.sync)",
    "path": "/api/ProductionOrder_Index_Email",
-   "params": {},
+   "params": {
+    "AttachmentID": {
+     "type": "string",
+     "flag": "attachment-id"
+    },
+    "EmailID": {
+     "type": "string",
+     "flag": "email-id"
+    },
+    "PrintEntityID": {
+     "type": "string",
+     "flag": "print-entity-id"
+    },
+    "PrintTemplateID": {
+     "type": "string",
+     "flag": "print-template-id"
+    },
+    "TaskID": {
+     "type": "string",
+     "flag": "task-id"
+    },
+    "parentSaleTaskID": {
+     "type": "string",
+     "flag": "parent-sale-task-id"
+    }
+   },
    "list_key": null,
    "paged": false,
    "runnable": false,
    "file": false,
    "effect": "write",
-   "methods_raw": "",
+   "methods_raw": "POST REST(GET read; POST/PUT/DELETE on store.sync)",
    "body_keys": [],
    "pages": [],
    "request": null,
@@ -54190,9 +54978,29 @@
    "method": "GET",
    "path": "/api/Purchase_Index_Email",
    "params": {
+    "AttachmentID": {
+     "type": "string",
+     "flag": "attachment-id"
+    },
+    "EmailID": {
+     "type": "string",
+     "flag": "email-id"
+    },
+    "PrintEntityID": {
+     "type": "string",
+     "flag": "print-entity-id"
+    },
+    "PrintTemplateID": {
+     "type": "string",
+     "flag": "print-template-id"
+    },
     "TaskID": {
      "type": "string",
      "flag": "task-id"
+    },
+    "parentSaleTaskID": {
+     "type": "string",
+     "flag": "parent-sale-task-id"
     }
    },
    "list_key": null,
@@ -54200,7 +55008,7 @@
    "runnable": true,
    "file": false,
    "effect": "read+write",
-   "methods_raw": "REST(GET read; POST/PUT/DELETE on store.sync)",
+   "methods_raw": "POST REST(GET read; POST/PUT/DELETE on store.sync)",
    "body_keys": [],
    "pages": [],
    "request": null,
@@ -55704,15 +56512,40 @@
    "name": "purchase-advanced-email",
    "resource": "/api/PurchaseAdvanced_Index_Email",
    "title": "api \u00b7 write",
-   "method": "?",
+   "method": "REST(GET read; POST/PUT/DELETE on store.sync)",
    "path": "/api/PurchaseAdvanced_Index_Email",
-   "params": {},
+   "params": {
+    "AttachmentID": {
+     "type": "string",
+     "flag": "attachment-id"
+    },
+    "EmailID": {
+     "type": "string",
+     "flag": "email-id"
+    },
+    "PrintEntityID": {
+     "type": "string",
+     "flag": "print-entity-id"
+    },
+    "PrintTemplateID": {
+     "type": "string",
+     "flag": "print-template-id"
+    },
+    "TaskID": {
+     "type": "string",
+     "flag": "task-id"
+    },
+    "parentSaleTaskID": {
+     "type": "string",
+     "flag": "parent-sale-task-id"
+    }
+   },
    "list_key": null,
    "paged": false,
    "runnable": false,
    "file": false,
    "effect": "write",
-   "methods_raw": "",
+   "methods_raw": "REST(GET read; POST/PUT/DELETE on store.sync)",
    "body_keys": [],
    "pages": [],
    "request": null,
@@ -57520,15 +58353,36 @@
    "name": "report-transaction-periods",
    "resource": "/api/Report_TransactionPeriods",
    "title": "api \u00b7 read",
-   "method": "?",
+   "method": "GET",
    "path": "/api/Report_TransactionPeriods",
-   "params": {},
-   "list_key": null,
-   "paged": false,
-   "runnable": false,
+   "params": {
+    "status": {
+     "type": "string",
+     "flag": "status"
+    },
+    "year": {
+     "type": "string",
+     "flag": "year"
+    },
+    "page": {
+     "type": "int",
+     "flag": "page"
+    },
+    "start": {
+     "type": "int",
+     "flag": "start"
+    },
+    "limit": {
+     "type": "int",
+     "flag": "limit"
+    }
+   },
+   "list_key": "root",
+   "paged": true,
+   "runnable": true,
    "file": false,
    "effect": "read",
-   "methods_raw": "",
+   "methods_raw": "REST(GET read; POST/PUT/DELETE on store.sync)",
    "body_keys": [],
    "pages": [
     "/Report/TransactionPeriods"
@@ -58141,15 +58995,40 @@
    "name": "rma-email",
    "resource": "/api/RMA_Index_Email",
    "title": "api \u00b7 write",
-   "method": "?",
+   "method": "REST(GET read; POST/PUT/DELETE on store.sync)",
    "path": "/api/RMA_Index_Email",
-   "params": {},
+   "params": {
+    "AttachmentID": {
+     "type": "string",
+     "flag": "attachment-id"
+    },
+    "EmailID": {
+     "type": "string",
+     "flag": "email-id"
+    },
+    "PrintEntityID": {
+     "type": "string",
+     "flag": "print-entity-id"
+    },
+    "PrintTemplateID": {
+     "type": "string",
+     "flag": "print-template-id"
+    },
+    "TaskID": {
+     "type": "string",
+     "flag": "task-id"
+    },
+    "parentSaleTaskID": {
+     "type": "string",
+     "flag": "parent-sale-task-id"
+    }
+   },
    "list_key": null,
    "paged": false,
    "runnable": false,
    "file": false,
    "effect": "write",
-   "methods_raw": "",
+   "methods_raw": "REST(GET read; POST/PUT/DELETE on store.sync)",
    "body_keys": [],
    "pages": [],
    "request": null,
@@ -59316,15 +60195,40 @@
    "name": "rma-ro-email",
    "resource": "/api/RMA_RO_Email",
    "title": "api \u00b7 write",
-   "method": "?",
+   "method": "REST(GET read; POST/PUT/DELETE on store.sync)",
    "path": "/api/RMA_RO_Email",
-   "params": {},
+   "params": {
+    "AttachmentID": {
+     "type": "string",
+     "flag": "attachment-id"
+    },
+    "EmailID": {
+     "type": "string",
+     "flag": "email-id"
+    },
+    "PrintEntityID": {
+     "type": "string",
+     "flag": "print-entity-id"
+    },
+    "PrintTemplateID": {
+     "type": "string",
+     "flag": "print-template-id"
+    },
+    "TaskID": {
+     "type": "string",
+     "flag": "task-id"
+    },
+    "parentSaleTaskID": {
+     "type": "string",
+     "flag": "parent-sale-task-id"
+    }
+   },
    "list_key": null,
    "paged": false,
    "runnable": false,
    "file": false,
    "effect": "write",
-   "methods_raw": "",
+   "methods_raw": "REST(GET read; POST/PUT/DELETE on store.sync)",
    "body_keys": [],
    "pages": [],
    "request": null,
@@ -59805,9 +60709,29 @@
    "method": "GET",
    "path": "/api/Sale_Index_Email",
    "params": {
+    "AttachmentID": {
+     "type": "string",
+     "flag": "attachment-id"
+    },
+    "EmailID": {
+     "type": "string",
+     "flag": "email-id"
+    },
+    "PrintEntityID": {
+     "type": "string",
+     "flag": "print-entity-id"
+    },
+    "PrintTemplateID": {
+     "type": "string",
+     "flag": "print-template-id"
+    },
     "TaskID": {
      "type": "string",
      "flag": "task-id"
+    },
+    "parentSaleTaskID": {
+     "type": "string",
+     "flag": "parent-sale-task-id"
     }
    },
    "list_key": null,
@@ -59815,7 +60739,7 @@
    "runnable": true,
    "file": false,
    "effect": "read+write",
-   "methods_raw": "REST(GET read; POST/PUT/DELETE on store.sync)",
+   "methods_raw": "POST REST(GET read; POST/PUT/DELETE on store.sync)",
    "body_keys": [],
    "pages": [],
    "request": null,
@@ -61390,21 +62314,41 @@
    "group_title": "Web \u00b7 21-report-service",
    "name": "sale-common-shipping-service-email",
    "resource": "/api/SaleCommon_ShippingService_Email",
-   "title": "api \u00b7 write",
-   "method": "POST",
+   "title": "api \u00b7 read+write",
+   "method": "GET",
    "path": "/api/SaleCommon_ShippingService_Email",
    "params": {
+    "AttachmentID": {
+     "type": "string",
+     "flag": "attachment-id"
+    },
+    "EmailID": {
+     "type": "string",
+     "flag": "email-id"
+    },
+    "PrintEntityID": {
+     "type": "string",
+     "flag": "print-entity-id"
+    },
+    "PrintTemplateID": {
+     "type": "string",
+     "flag": "print-template-id"
+    },
     "TaskID": {
      "type": "string",
      "flag": "task-id"
+    },
+    "parentSaleTaskID": {
+     "type": "string",
+     "flag": "parent-sale-task-id"
     }
    },
    "list_key": null,
    "paged": false,
-   "runnable": false,
+   "runnable": true,
    "file": false,
-   "effect": "write",
-   "methods_raw": "POST",
+   "effect": "read+write",
+   "methods_raw": "POST REST(GET read; POST/PUT/DELETE on store.sync)",
    "body_keys": [],
    "pages": [],
    "request": null,
@@ -61744,15 +62688,40 @@
    "name": "sale-mult-email",
    "resource": "/api/SaleMult_Index_Email",
    "title": "api \u00b7 write",
-   "method": "?",
+   "method": "POST REST(GET read; POST/PUT/DELETE on store.sync)",
    "path": "/api/SaleMult_Index_Email",
-   "params": {},
+   "params": {
+    "AttachmentID": {
+     "type": "string",
+     "flag": "attachment-id"
+    },
+    "EmailID": {
+     "type": "string",
+     "flag": "email-id"
+    },
+    "PrintEntityID": {
+     "type": "string",
+     "flag": "print-entity-id"
+    },
+    "PrintTemplateID": {
+     "type": "string",
+     "flag": "print-template-id"
+    },
+    "TaskID": {
+     "type": "string",
+     "flag": "task-id"
+    },
+    "parentSaleTaskID": {
+     "type": "string",
+     "flag": "parent-sale-task-id"
+    }
+   },
    "list_key": null,
    "paged": false,
    "runnable": false,
    "file": false,
    "effect": "write",
-   "methods_raw": "",
+   "methods_raw": "POST REST(GET read; POST/PUT/DELETE on store.sync)",
    "body_keys": [],
    "pages": [],
    "request": null,
@@ -63184,6 +64153,50 @@
    "body_keys": [
     "Status"
    ],
+   "pages": [
+    "/ProductionScheduler"
+   ],
+   "request": null,
+   "response": null
+  },
+  {
+   "source": "web",
+   "group": "web-production",
+   "group_title": "Web \u00b7 Production",
+   "name": "scheduler-calendar-v-production-orders-get-planned-production-orders",
+   "resource": "/api/Scheduler_Calendar_vProductionOrders/GetPlannedProductionOrders",
+   "title": "api \u00b7 read",
+   "method": "GET",
+   "path": "/api/Scheduler_Calendar_vProductionOrders/GetPlannedProductionOrders",
+   "params": {
+    "endDate": {
+     "type": "string",
+     "flag": "end-date"
+    },
+    "search": {
+     "type": "string",
+     "flag": "search"
+    },
+    "shopFloorId": {
+     "type": "string",
+     "flag": "shop-floor-id"
+    },
+    "startDate": {
+     "type": "string",
+     "flag": "start-date"
+    },
+    "withRefData": {
+     "type": "string",
+     "flag": "with-ref-data"
+    }
+   },
+   "list_key": null,
+   "paged": false,
+   "runnable": true,
+   "file": false,
+   "effect": "read",
+   "methods_raw": "GET",
+   "body_keys": [],
    "pages": [
     "/ProductionScheduler"
    ],
@@ -67351,15 +68364,40 @@
    "name": "stock-transfer-email",
    "resource": "/api/StockTransfer_Index_Email",
    "title": "api \u00b7 write",
-   "method": "?",
+   "method": "REST(GET read; POST/PUT/DELETE on store.sync)",
    "path": "/api/StockTransfer_Index_Email",
-   "params": {},
+   "params": {
+    "AttachmentID": {
+     "type": "string",
+     "flag": "attachment-id"
+    },
+    "EmailID": {
+     "type": "string",
+     "flag": "email-id"
+    },
+    "PrintEntityID": {
+     "type": "string",
+     "flag": "print-entity-id"
+    },
+    "PrintTemplateID": {
+     "type": "string",
+     "flag": "print-template-id"
+    },
+    "TaskID": {
+     "type": "string",
+     "flag": "task-id"
+    },
+    "parentSaleTaskID": {
+     "type": "string",
+     "flag": "parent-sale-task-id"
+    }
+   },
    "list_key": null,
    "paged": false,
    "runnable": false,
    "file": false,
    "effect": "write",
-   "methods_raw": "",
+   "methods_raw": "REST(GET read; POST/PUT/DELETE on store.sync)",
    "body_keys": [],
    "pages": [],
    "request": null,
@@ -67385,7 +68423,7 @@
    "runnable": true,
    "file": false,
    "effect": "read+write",
-   "methods_raw": "REST(GET read; POST/PUT/DELETE on store.sync)",
+   "methods_raw": "POST REST(GET read; POST/PUT/DELETE on store.sync)",
    "body_keys": [],
    "pages": [],
    "request": null,
@@ -67808,15 +68846,24 @@
    "name": "stocktransfer-list-v-stock-transfer-task",
    "resource": "/api/StocktransferList_Index_vStockTransferTask",
    "title": "api \u00b7 read",
-   "method": "?",
+   "method": "GET(read)",
    "path": "/api/StocktransferList_Index_vStockTransferTask",
-   "params": {},
-   "list_key": null,
+   "params": {
+    "search": {
+     "type": "string",
+     "flag": "search"
+    },
+    "status": {
+     "type": "string",
+     "flag": "status"
+    }
+   },
+   "list_key": "root",
    "paged": false,
    "runnable": false,
    "file": false,
    "effect": "read",
-   "methods_raw": "",
+   "methods_raw": "GET(read)",
    "body_keys": [],
    "pages": [],
    "request": null,

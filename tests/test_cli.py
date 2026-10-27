@@ -33,7 +33,7 @@ def test_spec_covers_every_operation():
     assert len(public) == 295
     assert len({o.group for o in public}) == 32
     assert sum(o.method == "GET" for o in public) == 102
-    assert sum(o.source == "web" for o in ops) == 2177
+    assert sum(o.source == "web" for o in ops) == 2196
     names = [(o.group, o.name) for o in ops]
     assert len(names) == len(set(names)), "subcommand names must be unique per group"
 
@@ -376,6 +376,29 @@ def test_penalise_pushes_next_call(tmp_path):
     rl.penalise(10)
     rl.wait()
     assert slept == [pytest.approx(10)]
+
+
+def _build_spec_module():
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parent.parent / "scripts" / "build_spec.py"
+    mod_spec = importlib.util.spec_from_file_location("build_spec", path)
+    mod = importlib.util.module_from_spec(mod_spec)
+    mod_spec.loader.exec_module(mod)
+    return mod
+
+
+def test_web_read_that_returns_a_credential_never_runs():
+    """A GET that hands back a token or password is marked read in the map, but must not run."""
+    mod = _build_spec_module()
+    assert mod.web_read_method("/api/GSuites_Index_Files/GetAccessToken", "read", "GET") is None
+
+
+def test_plain_web_read_still_runs():
+    mod = _build_spec_module()
+    url = "/api/Scheduler_Calendar_vProductionOrders/GetPlannedProductionOrders"
+    assert mod.web_read_method(url, "read", "GET") == "GET"
 
 
 def test_spec_matches_rebuild_repo_when_present():

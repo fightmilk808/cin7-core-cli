@@ -119,7 +119,8 @@ WEB_BASE = "https://inventory.dearsystems.com"
 # Never runnable, whatever the map says about reads: names that log out or act.
 NEVER_RUN = re.compile(
     r"log ?off|logout|delete|remove|void|undo|cancel|authori[sz]e|release|complete|recalculate|"
-    r"_run\b|split|merge|reorder|import|upload|send|post\b",
+    r"_run\b|split|merge|reorder|import|upload|send|post\b|"
+    r"token|password|secret|credential|api ?key",
     re.I,
 )
 MODULE_TITLES = {
