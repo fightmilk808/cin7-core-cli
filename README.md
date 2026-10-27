@@ -13,7 +13,7 @@
 
 | 🌍 Public operations | 📖 Reads · ✍️ writes | 🔌 Internal endpoints | 📄 Paged lists | 📦 Groups |
 |:-:|:-:|:-:|:-:|:-:|
-| **295** | **102** · 193 | **2,177** mapped · 1,365 sendable reads | **47** | **32** |
+| **295** | **102** · 193 | **2,196** mapped · 1,383 sendable reads | **47** | **32** |
 
 ## Three ways in
 

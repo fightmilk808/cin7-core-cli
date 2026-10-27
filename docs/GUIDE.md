@@ -91,7 +91,7 @@ print (`/ProductionOrdersList/Print`, `orderIDs`) is mapped.
 
 ## Internal endpoints (the web app's own API)
 
-Besides the 295 public operations, the spec carries every endpoint from the rebuild map's `endpoints.csv` (2,177),
+Besides the 295 public operations, the spec carries every endpoint from the rebuild map's `endpoints.csv` (2,196),
 plus the WMS, MES and report-service lists, under `web-<module>` groups (`web-mrp`, `web-sale`, `web-production`, …).
 In the TUI they sit in their own purple **INTERNAL** section below the public API; the five main public groups
 (Products, Sales, Transfers · Stock, Production, Purchases) are pinned above everything in bold amber.
