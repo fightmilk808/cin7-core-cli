@@ -289,3 +289,74 @@ async def test_dark_theme_uses_todays_op_title_tags(tmp_path):
         await _settled(app, pilot)
         runs = _painted(app, app.query_one("#op-title").region)
         assert any(fg.red > 150 and fg.green > 150 and fg.blue < 60 for _, fg, _, _ in runs), (painted, runs)
+
+
+async def _open_write_op_and_record(app, pilot):
+    from textual.widgets import Tree
+
+    from cin7_cli.tui import fill_json
+
+    app.select(spec.find("attribute-set", "create"))
+    await _settled(app, pilot)
+    app.data = RECORD
+    app._show_record(RECORD)
+    await _settled(app, pilot)
+    _expand_all(app.query_one("#record-tree", Tree))
+    jt = app.query_one("#json-tree", Tree)
+    jt.clear()
+    jt.root.set_label("response")
+    fill_json(jt.root, RECORD, app.tags)
+    _expand_all(jt)
+    await _settled(app, pilot)
+
+
+async def _everything(app, pilot):
+    """Painted text runs for the right-hand widgets, one tab at a time."""
+    from textual.widgets import Tree
+
+    out = {}
+    for name, tab, tree_id in (("record", "tab-record", "#record-tree"), ("json", "tab-json", "#json-tree")):
+        app.query_one("#results").active = tab
+        await _settled(app, pilot)
+        out[name] = _painted(app, app.query_one(tree_id, Tree).region)
+        if name == "record":
+            out["op-title"] = _painted(app, app.query_one("#op-title").region)
+            out["right"] = _painted(app, app.query_one("#right").region)
+    return out
+
+
+def _colours(runs):
+    """Text colour of every run (the words differ: the status line names the theme)."""
+    return [tuple(f) for _, f, _, _ in runs]
+
+
+async def test_ctrl_t_recolours_content_that_is_already_on_screen(tmp_path):
+    app = Cin7Tui(export_dir=tmp_path, themes=[theme.CIN7_LIGHT, theme.CIN7_DARK])
+    async with app.run_test(size=(140, 45)) as pilot:
+        await _settled(app, pilot)
+        await _open_write_op_and_record(app, pilot)
+
+        for name, runs in (await _everything(app, pilot)).items():
+            assert runs and not _low_contrast(runs), f"light start, {name}"
+        await _everything(app, pilot)
+
+        # In dark, "right" means: same colours as a fresh dark start (some of it is below 4.5 today).
+        await pilot.press("ctrl+t")
+        await _settled(app, pilot)
+        assert app.theme == "cin7-dark"
+        dark_now = await _everything(app, pilot)
+
+        fresh = Cin7Tui(export_dir=tmp_path, themes=[theme.CIN7_DARK])
+        async with fresh.run_test(size=(140, 45)) as fpilot:
+            await _settled(fresh, fpilot)
+            await _open_write_op_and_record(fresh, fpilot)
+            await _everything(fresh, fpilot)  # same tab hopping as the app above, so focus matches
+            baseline = await _everything(fresh, fpilot)
+        for name in baseline:
+            assert baseline[name] and _colours(dark_now[name]) == _colours(baseline[name]), f"dark after switch, {name}"
+
+        await pilot.press("ctrl+t")
+        await _settled(app, pilot)
+        assert app.theme == "cin7-light"
+        for name, runs in (await _everything(app, pilot)).items():
+            assert runs and not _low_contrast(runs), f"light after cycling, {name}"

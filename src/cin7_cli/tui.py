@@ -303,9 +303,18 @@ def fill_json(node, value: object, tags: dict[str, str] | None = None) -> None:
     for k, v in items:
         label = json_label(k, v, tags)
         if isinstance(v, (dict, list)) and v:
-            node.add(label, data=("lazy", v))
+            node.add(label, data=("lazy", v, k))
         else:
-            node.add_leaf(label, data=("leaf", v))
+            node.add_leaf(label, data=("leaf", v, k))
+
+
+def relabel_json(node, tags: dict[str, str]) -> None:
+    """Rebuild every member label under `node` with `tags`, keeping expansion and cursor."""
+    for child in node.children:
+        data = child.data
+        if isinstance(data, tuple) and len(data) == 3 and data[0] in ("lazy", "done", "leaf"):
+            child.set_label(json_label(data[2], data[1], tags))
+        relabel_json(child, tags)
 
 
 def load_ui_state() -> dict:
@@ -634,12 +643,33 @@ class Cin7Tui(App):
             }
         )
 
+    def _dim_label(self, text: str) -> Label:
+        label = Label("")
+        self._tagged(label, lambda: f"[{self.tags['dim']}]{text}[/]")
+        return label
+
+    def _tagged(self, widget: Static, build) -> None:
+        """Show `build()` in `widget` and rebuild it whenever the theme (and so the tags) changes."""
+        widget._retag = build  # type: ignore[attr-defined]
+        widget.update(build())
+
+    def _retag_all(self) -> None:
+        for w in self.query(Static):
+            build = getattr(w, "_retag", None)
+            if build is not None:
+                w.update(build())
+        for tree_id in ("#record-tree", "#json-tree", "#shape-tree"):
+            tree = self.query_one(tree_id, Tree)
+            relabel_json(tree.root, self.tags)
+            tree.refresh()
+
     def _chrome_for_theme(self, t: Theme) -> None:
         """Navy sidebar for themes that ask for it (the light theme)."""
         self.set_class(themes_mod.has_navy_side(t), "-navy-side")
         self.tags = dict(themes_mod.tags_for(t))
         if self.is_mounted and self.query("#ops"):
             self._fill_tree(self.query_one("#filter", Input).value)
+            self._retag_all()
 
     def action_cycle_theme(self) -> None:
         names = [t.name for t in self.themes]
@@ -786,7 +816,7 @@ class Cin7Tui(App):
         node = event.node
         if isinstance(node.data, tuple) and node.data and node.data[0] == "lazy":
             fill_json(node, node.data[1], self.tags)
-            node.data = ("done", node.data[1])
+            node.data = ("done", node.data[1], node.data[2])
 
     @on(Input.Submitted, "#form Input")
     def _submit(self) -> None:
@@ -839,14 +869,18 @@ class Cin7Tui(App):
         """Show `op`'s form and shape."""
         self.op = op
         self._set_mode(op)
-        t = self.tags
-        if op.is_public:
-            kind = f"[{t['write']}]WRITE · not runnable here[/]" if op.is_write else "read"
-        elif op.runnable:
-            kind = f"[{t['internal']}]INTERNAL read · browser session[/]" + (" · download" if op.file else "")
-        else:
-            kind = f"[{t['internal']}]INTERNAL · never sent[/]" if op.source == "web" else f"[{t['dim']}]reference only[/]"
-        self.query_one("#op-title", Static).update(f"cin7 {op.full_name}  [{t['dim']}]{kind}[/]")
+
+        def title() -> str:
+            t = self.tags
+            if op.is_public:
+                kind = f"[{t['write']}]WRITE · not runnable here[/]" if op.is_write else "read"
+            elif op.runnable:
+                kind = f"[{t['internal']}]INTERNAL read · browser session[/]" + (" · download" if op.file else "")
+            else:
+                kind = f"[{t['internal']}]INTERNAL · never sent[/]" if op.source == "web" else f"[{t['dim']}]reference only[/]"
+            return f"cin7 {op.full_name}  [{t['dim']}]{kind}[/]"
+
+        self._tagged(self.query_one("#op-title", Static), title)
         alias = f" · alias {', '.join(op.aliases)}" if op.aliases else ""
         pages = f" · used on {', '.join(op.pages[:4])}" if op.pages else ""
         self.query_one("#op-meta", Static).update(f"{op.method} {op.path} · {op.title}{alias}{pages}")
@@ -859,11 +893,11 @@ class Cin7Tui(App):
             widget = (ParamSelect(p) if p.type == "bool" else ParamMulti(p)) if p.choices else ParamInput(p, find=r.hint if r else "")
             rows.append(Horizontal(Label(f"{p.name}{star}"), widget, classes="row"))
         if not rows:
-            rows.append(Label(f"[{self.tags['dim']}]No query parameters[/]"))
+            rows.append(self._dim_label("No query parameters"))
         form.remove_class("collapsed")
         form.mount_all(rows)
         if op.read_via_post:
-            form.mount(Horizontal(Label(f"[{self.tags['dim']}]JSON query body[/]"), Input(placeholder="{}", id="post-body"), classes="row"))
+            form.mount(Horizontal(self._dim_label("JSON query body"), Input(placeholder="{}", id="post-body"), classes="row"))
         sendable = first_ok(op)
         box = self.query_one("#all-pages", Checkbox)
         box.disabled = not op.paged or not sendable
@@ -1387,7 +1421,8 @@ class Cin7Tui(App):
         self.data, self.rows, self.cols = snap["data"], snap["rows"], snap["cols"]
         self.hidden, self.sort_col, self.sort_desc, self.search_text = set(), None, False, ""
         self.query_one("#search", Input).value = ""
-        self.query_one("#op-title", Static).update(f"cin7 {self.op.full_name}  [{self.tags['dim']}]history {self.hpos + 1}/{len(self.history)}[/]")
+        full, pos, total = self.op.full_name, self.hpos + 1, len(self.history)
+        self._tagged(self.query_one("#op-title", Static), lambda: f"cin7 {full}  [{self.tags['dim']}]history {pos}/{total}[/]")
         self._rebuild_view()
         self._fill_group_choices()
         jt = self.query_one("#json-tree", Tree)
@@ -1441,7 +1476,10 @@ class Cin7Tui(App):
     def _show_print_info(self, pe: printing.PrintEndpoint) -> None:
         self.op = None
         self._set_mode(None)
-        self.query_one("#op-title", Static).update(f"[bold {self.tags['print']}]⎙ {pe.path}[/]  [{self.tags['dim']}]{'bulk' if pe.bulk else 'one record'}[/]")
+        self._tagged(
+            self.query_one("#op-title", Static),
+            lambda: f"[bold {self.tags['print']}]⎙ {pe.path}[/]  [{self.tags['dim']}]{'bulk' if pe.bulk else 'one record'}[/]",
+        )
         self.query_one("#op-meta", Static).update(f"Lives on: {pe.where or 'unknown'}")
         form = self.query_one("#form", VerticalScroll)
         form.remove_children()
@@ -1453,7 +1491,9 @@ class Cin7Tui(App):
             if pe.sendable
             else "The map doesn't say what this endpoint takes, so it can't be sent from here."
         )
-        form.mount(Static(how + f"\n[{self.tags['dim']}]{PRINT_NOTE}[/]"))
+        note = Static("")
+        form.mount(note)
+        self._tagged(note, lambda: how + f"\n[{self.tags['dim']}]{PRINT_NOTE}[/]")
         self.query_one("#run", Button).disabled = True
         self.query_one("#all-pages", Checkbox).disabled = True
         tree = self.query_one("#shape-tree", Tree)
