@@ -41,11 +41,14 @@ class FakeProvider:
 class BrokenProvider:
     title = "Broken"
 
+    def __init__(self):
+        self.ran: list[Node] = []
+
     def nodes(self, filter_text: str) -> list[Node]:
         raise RuntimeError("boom")
 
-    def run(self, app, node: Node) -> None:  # pragma: no cover - never reached
-        pass
+    def run(self, app, node: Node) -> None:
+        self.ran.append(node)
 
 
 def _heads(tree):
@@ -179,6 +182,21 @@ async def test_provider_error_is_a_leaf(tmp_path):
         app.query_one("#filter", Input).value = "x"
         await pilot.pause()
         assert app.is_running
+
+
+async def test_enter_on_error_leaf_does_nothing(tmp_path):
+    broken = BrokenProvider()
+    app = Cin7Tui(export_dir=tmp_path, providers=[broken])
+    async with app.run_test(size=(140, 45)) as pilot:
+        await pilot.pause()
+        tree = app.query_one("#ops", Tree)
+        leaf = _section(tree, "Broken").children[0]
+        tree.focus()
+        tree.move_cursor(leaf)
+        await pilot.press("enter")
+        await pilot.pause()
+        assert broken.ran == [], "the broken provider's run is not called with the error row"
+        assert app.is_running and app.op is None
 
 
 async def test_filter_reaches_providers(tmp_path):

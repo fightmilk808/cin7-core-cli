@@ -735,8 +735,9 @@ def test_tui_no_splash_flag_wiring(monkeypatch):
 
     calls = []
     monkeypatch.setattr(tui, "run", lambda rate, show_splash=None: calls.append(show_splash) or 0)
+    monkeypatch.setenv("CIN7_TUI_SPLASH", "1")  # conftest turns it off; here only the flag may
     assert cli.build_parser().parse_args(["tui", "--no-splash"]).no_splash is True
+    assert cli.build_parser().parse_args(["tui"]).no_splash is False
     assert cli.main(["tui", "--no-splash"]) == 0
-    monkeypatch.setenv("CIN7_TUI_SPLASH", "1")
     assert cli.main(["tui"]) == 0
     assert calls == [False, True]

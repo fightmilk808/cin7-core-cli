@@ -39,8 +39,8 @@ class Node:
         heat: 0-100, drawn as a bar in front of the row (see `heat_prefix`); None for none.
         children: Child rows. A node with children is a branch, without them a leaf.
         expanded: Whether a branch starts open.
-        data: Anything. The TUI acts on `spec.Operation`, `("quick", key)`, `("print", endpoint)`
-            and `("group", name)` itself; enter on any other leaf calls the provider's `run`.
+        data: Anything. The TUI acts on `spec.Operation`, `("quick", key)`, `("print", endpoint)`,
+            `("group", name)` and `("error",)` itself; enter on any other leaf calls the provider's `run`.
         style: Optional markup style for the label alone, e.g. "bold cyan".
     """
 

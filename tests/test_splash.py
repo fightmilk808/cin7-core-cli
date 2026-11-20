@@ -324,11 +324,14 @@ async def test_slow_status_provider_does_not_block_dismissal(tmp_path):
             raise
         return "never"
 
-    app = _app(tmp_path, _long(seconds=0.4, status_provider=provider))
+    app = _app(tmp_path, _long(seconds=1.0, status_provider=provider))
     async with app.run_test(size=(80, 24)) as pilot:
-        await pilot.pause(0.15)
+        await pilot.pause()
         assert _on_splash(app) and _status(app) == ""
-        await pilot.pause(0.6)
+        for _ in range(100):  # up to 5 s: the splash leaves on its own timer, not the provider's
+            if not _on_splash(app) and cancelled.is_set():
+                break
+            await pilot.pause(0.05)
         assert not _on_splash(app)
         assert cancelled.is_set()
 

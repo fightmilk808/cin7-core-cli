@@ -403,3 +403,52 @@ async def test_light_sidebar_custom_provider_with_heat_is_readable(tmp_path):
             await pilot.press("ctrl+t", "ctrl+t")
             await _settled(app, pilot)
             assert app.theme == "cin7-light"
+
+
+def _scrollbar_colours(app, widget):
+    """(thumb colours, track colours) as shown in a widget's vertical scrollbar cells.
+
+    Textual paints the thumb as `color=bar` with `reverse`, so a reversed cell shows its
+    foreground colour; any other cell shows its background.
+    """
+    strips = app.screen._compositor.render_strips()
+    c, r = widget.scrollable_content_region, widget.region
+    thumb, track = set(), set()
+    for y in range(c.y, c.y + c.height):
+        for seg in strips[y].crop(c.x + c.width, r.x + r.width):
+            st = seg.style
+            if st is None:
+                continue
+            if st.reverse:
+                if st.color is not None:
+                    thumb.add(tuple(_rgb(st.color)))
+            elif st.bgcolor is not None:
+                track.add(tuple(_rgb(st.bgcolor)))
+    return thumb, track
+
+
+@pytest.mark.parametrize("size", [(140, 45), (100, 30)])
+async def test_sidebar_scrollbar_thumb_is_visible(tmp_path, size):
+    """WCAG non-text contrast: the sidebar scrollbar thumb is at least 3:1 against its track, both themes."""
+    from textual.widgets import Tree
+
+    from cin7_cli import providers
+
+    app = Cin7Tui(export_dir=tmp_path, themes=[theme.CIN7_LIGHT, theme.CIN7_DARK],
+                  providers=[_HeatProvider(), providers.QuickViewsProvider(), providers.OperationsProvider()])
+    async with app.run_test(size=size) as pilot:
+        await _settled(app, pilot)
+        app.query_one("#table").focus()
+        await _settled(app, pilot)
+        for name in ("cin7-light", "cin7-dark"):
+            assert app.theme == name
+            tree = app.query_one("#ops", Tree)
+            assert tree.show_vertical_scrollbar, "the tree is long enough to scroll"
+            thumb, track = _scrollbar_colours(app, tree)
+            assert thumb and track, f"{name}: scrollbar painted"
+            low = [(t, k, round(_contrast(t, k), 2)) for t in thumb for k in track if _contrast(t, k) < 3.0]
+            assert not low, f"{name}: thumb vs track {low}"
+            if name == "cin7-light":
+                assert track == {(0x1C, 0x2B, 0x41)}, "track is the navy panel"
+            await pilot.press("ctrl+t")
+            await _settled(app, pilot)

@@ -406,6 +406,15 @@ class Cin7Tui(App):
     .-navy-side #left Tree > .tree--guides { color: #5d7391; }
     .-navy-side #left Tree > .tree--cursor { background: #2f7ff0; color: #ffffff; text-style: bold; }
     .-navy-side #left Tree:focus > .tree--cursor { background: #2f7ff0; color: #ffffff; }
+    /* Sidebar scrollbar: thumb at least 3:1 against its track (WCAG non-text). Light: track = the navy panel. */
+    .-navy-side #left, .-navy-side #left Tree {
+        scrollbar-background: #1c2b41; scrollbar-background-hover: #1c2b41; scrollbar-background-active: #1c2b41;
+        scrollbar-color: #97b8e7; scrollbar-color-hover: #b9d0f0; scrollbar-color-active: #dbe7f8;
+        scrollbar-corner-color: #1c2b41;
+    }
+    .-dark-mode #left, .-dark-mode #left Tree {
+        scrollbar-color: #4f7fae; scrollbar-color-hover: #6b97c4; scrollbar-color-active: #8fb2d6;
+    }
     #modebar { height: 1; padding: 0 1; text-style: bold; }
     #modebar.idle { background: $success 25%; }
     #modebar.public { background: $success 35%; }
@@ -739,8 +748,11 @@ class Cin7Tui(App):
             try:
                 nodes = list(provider.nodes(text.strip()))
             except Exception as e:  # one broken section must not take the sidebar down
-                nodes = [providers_mod.Node(id="error", label=f"[red]error: {rich_escape(str(e) or type(e).__name__)}[/]")]
+                head = tree.root.add(tint(f"[bold]{title}[/]"), data=None, expand=True)
+                # ("error",) is the TUI's own data: enter on it does nothing, and it is never handed to `run`
+                head.add_leaf(f"[red]error: {rich_escape(str(e) or type(e).__name__)}[/]", data=("error",))
                 self.log_line(f"[red]sidebar section {rich_escape(title)}: {rich_escape(repr(e))}[/]")
+                continue
             if not nodes:
                 continue
             head = tree.root.add(tint(f"[bold]{title}[/]"), data=None, expand=bool(getattr(provider, "expanded", True)))
@@ -774,6 +786,8 @@ class Cin7Tui(App):
             self._show_print_info(data[1])
         elif isinstance(data, tuple) and data and data[0] == "quick":
             self.action_quick(data[1])
+        elif isinstance(data, tuple) and data and data[0] == "error":
+            pass  # a provider's error row: nothing to run
         elif event.node.id in self._provider_leaves:
             provider, node = self._provider_leaves[event.node.id]
             try:
