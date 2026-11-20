@@ -25,8 +25,11 @@ def _tracked_files() -> list[str]:
 def test_no_real_order_numbers():
     hits = []
     for name in _tracked_files():
+        path = ROOT / name
+        if not path.is_file():
+            continue  # deleted locally, or a directory/submodule entry
         try:
-            text = (ROOT / name).read_text(encoding="utf-8")
+            text = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
             continue  # binary file
         for lineno, line in enumerate(text.splitlines(), start=1):

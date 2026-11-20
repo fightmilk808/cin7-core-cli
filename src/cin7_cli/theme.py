@@ -1,0 +1,50 @@
+"""Colour themes for the TUI.
+
+`CIN7_LIGHT` is the default. `CIN7_DARK` keeps the look the app had before themes
+existed (Textual's stock dark palette). `Cin7Tui(themes=[...])` takes any list of
+`textual.theme.Theme` objects; the first one is active at start and `ctrl+t`
+cycles through the list.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+
+from textual.app import App
+from textual.theme import Theme
+
+CIN7_LIGHT = Theme(
+    name="cin7-light",
+    primary="#2f7ff0",
+    secondary="#4a6fa5",
+    accent="#18b0a8",
+    warning="#e0a030",
+    error="#e5484d",
+    success="#2fa36b",
+    foreground="#1d2633",
+    background="#f3f5f8",
+    surface="#ffffff",
+    panel="#1c2b41",
+    dark=False,
+)
+
+# Same values Textual's default dark theme uses, so the app looks as it did before.
+CIN7_DARK = Theme(
+    name="cin7-dark",
+    primary="#0178D4",
+    secondary="#004578",
+    warning="#ffa62b",
+    error="#ba3c5b",
+    success="#4EBF71",
+    accent="#ffa62b",
+    foreground="#e0e0e0",
+    dark=True,
+)
+
+DEFAULT_THEMES: tuple[Theme, ...] = (CIN7_LIGHT, CIN7_DARK)
+
+
+def register(app: App, themes: Sequence[Theme]) -> None:
+    """Register every theme with the app so it can be selected by name."""
+    for t in themes:
+        app.register_theme(t)

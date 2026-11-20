@@ -16,6 +16,7 @@ import subprocess
 import time
 import webbrowser
 from collections import Counter
+from collections.abc import Sequence
 from pathlib import Path
 
 from rich.markup import escape as rich_escape
@@ -26,6 +27,7 @@ from textual.app import App, ComposeResult
 from textual.screen import ModalScreen
 from textual.binding import Binding
 from textual.markup import escape
+from textual.theme import Theme
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import (
     Button,
@@ -49,6 +51,7 @@ from textual.widgets import (
 from . import auth, output, paging, printing, ratelimit, resolve, rowtools, runner, spec
 from .cli import TYPE_HINT, TYPES
 from .client import ApiError, base_url
+from . import theme as themes_mod
 from .safety import PRINT_NOTE
 from .ratelimit import DEFAULT_PER_MIN
 
@@ -357,6 +360,7 @@ HELP_ROWS = (
     ("", "ctrl+s · ctrl+o", "save the form under a name · load or delete a saved filter"),
     ("History", "<  >", "back and forward through earlier results"),
     ("", "k", "freeze the current table in a right-hand pane to compare"),
+    ("Theme", "ctrl+t", "cycle colour themes (light, dark)"),
     ("Sidebar", "ctrl+b", "hide or show"),
     ("", "[  ]", "narrower · wider"),
     ("", "c · m · /", "compact (no counts) · show or hide writes (never sent) · filter operations"),
@@ -401,10 +405,12 @@ class Cin7Tui(App):
     #modebar.public { background: $success 35%; }
     #modebar.internal { background: $error 55%; color: white; }
     #modebar.reference { background: $warning 40%; }
-    #left { width: 44; border-right: solid $panel; }
+    #left, #right { border: round $panel-lighten-1; }
+    #left { width: 30; }
     #left.hidden { display: none; }
     #filter { margin: 0 1; }
     #ops { height: 1fr; }
+    Tree { padding: 0 1; }
     #right { width: 1fr; }
     #op-title { padding: 0 1; text-style: bold; }
     #op-meta { padding: 0 1; color: $text-muted; }
@@ -430,7 +436,7 @@ class Cin7Tui(App):
     #summary { height: 1fr; }
     #tables { height: 1fr; }
     #table { height: 1fr; width: 1fr; }
-    #side { display: none; width: 1fr; border-left: solid $panel; }
+    #side { display: none; width: 1fr; border-left: solid $panel-lighten-1; }
     #side.on { display: block; }
     #side-title { color: $text-muted; padding: 0 1; }
     #table2 { height: 1fr; }
@@ -438,6 +444,7 @@ class Cin7Tui(App):
     BINDINGS = [
         Binding("ctrl+r", "run", "Run"),
         Binding("ctrl+b", "toggle_sidebar", "Sidebar"),
+        Binding("ctrl+t", "cycle_theme", "Theme", show=False),
         Binding("ctrl+f", "focus_search", "Search"),
         Binding("ctrl+e", "export", "CSV"),
         Binding("ctrl+j", "export_json", "JSON", show=False),
@@ -473,8 +480,14 @@ class Cin7Tui(App):
         Binding("ctrl+q", "quit", "Quit"),
     ]
 
-    def __init__(self, rate: float = DEFAULT_PER_MIN, export_dir: Path | None = None):
+    def __init__(
+        self,
+        rate: float = DEFAULT_PER_MIN,
+        export_dir: Path | None = None,
+        themes: Sequence[Theme] | None = None,
+    ):
         super().__init__()
+        self.themes: list[Theme] = list(themes) if themes else list(themes_mod.DEFAULT_THEMES)
         self.rate = rate
         self.export_dir = export_dir or Path.cwd()
         self.op: spec.Operation | None = None
@@ -491,7 +504,7 @@ class Cin7Tui(App):
         self.clients: dict = {}
         self.running = False
         ui = load_ui_state()
-        self.sidebar_width = int(ui.get("sidebar_width", 44))
+        self.sidebar_width = int(ui.get("sidebar_width", 30))
         self.compact = bool(ui.get("compact", False))
         self.show_writes = bool(ui.get("show_writes", False))
         self.pins: list[str] = list(ui.get("pins", []))
@@ -547,6 +560,8 @@ class Cin7Tui(App):
         yield Footer()
 
     def on_mount(self) -> None:
+        themes_mod.register(self, self.themes)
+        self.theme = self.themes[0].name
         self._set_mode(None)
         self._apply_sidebar()
         self._fill_tree("")
@@ -576,6 +591,12 @@ class Cin7Tui(App):
                 "saved": self.saved,
             }
         )
+
+    def action_cycle_theme(self) -> None:
+        names = [t.name for t in self.themes]
+        i = names.index(self.theme) if self.theme in names else -1
+        self.theme = names[(i + 1) % len(names)]
+        self.set_status(f"theme {self.theme}")
 
     def action_toggle_sidebar(self) -> None:
         self.sidebar_shown = not self.sidebar_shown
