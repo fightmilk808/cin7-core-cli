@@ -192,3 +192,100 @@ async def test_dark_theme_chrome_is_unchanged(tmp_path):
         assert header and all(tuple(fg) == (224, 224, 224) for _, fg, _, _ in header)
         footer = _painted(app, app.query_one(Footer).region)
         assert footer and not _low_contrast(footer)
+
+
+RECORD = {
+    "CustomerReference": "#10001",
+    "Name": "Example",
+    "Quantity": 12,
+    "Price": 3.5,
+    "Active": True,
+    "Archived": False,
+    "Note": None,
+    "Lines": [{"SKU": "ABC-1", "Qty": 2, "Shipped": False, "Memo": None}],
+    "Address": {"City": "Springfield", "Geo": {"Lat": 1.5, "Lon": -2}},
+}
+
+
+def _expand_all(tree):
+    def walk(node):
+        node.expand()
+        for child in node.children:
+            walk(child)
+
+    walk(tree.root)
+
+
+async def test_light_theme_right_hand_tags_and_trees_are_readable(tmp_path):
+    from textual.widgets import Tree
+
+    app = Cin7Tui(export_dir=tmp_path, themes=[theme.CIN7_LIGHT])
+    async with app.run_test(size=(140, 45)) as pilot:
+        await _settled(app, pilot)
+        ops = {
+            "write": spec.find("attribute-set", "create"),
+            "internal read": spec.find("web-settings", "account-country"),
+        }
+        never_sent = next(
+            (o for o in spec.operations() if o.source == "web" and not o.runnable),
+            None,
+        )
+        reference = next((o for o in spec.operations() if o.source in ("wms", "mes", "report-service")), None)
+        if never_sent:
+            ops["internal never sent"] = never_sent
+        if reference:
+            ops["reference only"] = reference
+        for label, op in ops.items():
+            assert op is not None, label
+            app.select(op)
+            await _settled(app, pilot)
+            low = _low_contrast(_painted(app, app.query_one("#op-title").region))
+            assert not low, f"{label}: {low}"
+
+        app.data = RECORD
+        app._show_record(RECORD)
+        await _settled(app, pilot)
+        record = app.query_one("#record-tree", Tree)
+        _expand_all(record)
+        await _settled(app, pilot)
+        runs = _painted(app, record.region)
+        assert len(runs) > 8
+        assert not _low_contrast(runs), "record tree"
+        record.cursor_line = 3
+        await _settled(app, pilot)
+        assert not _low_contrast(_painted(app, record.region)), "record tree, cursor moved"
+
+        app.query_one("#results").active = "tab-json"
+        jt = app.query_one("#json-tree", Tree)
+        jt.root.set_label("response")
+        from cin7_cli.tui import fill_json
+
+        jt.clear()
+        fill_json(jt.root, RECORD, app.tags)
+        jt.root.expand()
+        _expand_all(jt)
+        await _settled(app, pilot)
+        runs = _painted(app, jt.region)
+        assert len(runs) > 8
+        assert not _low_contrast(runs), "json tree"
+
+
+def test_dark_json_labels_keep_todays_tags():
+    from cin7_cli.tui import json_label
+
+    assert json_label("n", 5) == "[bold]n[/]: [cyan]5[/]"
+    assert json_label("s", "x") == '[bold]s[/]: [green]"x"[/]'
+    assert json_label("b", True) == "[bold]b[/]: [magenta]true[/]"
+    assert json_label("d", {"a": 1}) == "[bold]d[/] [dim]{1}[/]"
+
+
+async def test_dark_theme_uses_todays_op_title_tags(tmp_path):
+    app = Cin7Tui(export_dir=tmp_path, themes=[theme.CIN7_DARK])
+    async with app.run_test(size=(140, 40)) as pilot:
+        await _settled(app, pilot)
+        assert app.tags == theme.TAGS_DARK
+        painted = _painted(app, app.query_one("#op-title").region)
+        app.select(spec.find("attribute-set", "create"))
+        await _settled(app, pilot)
+        runs = _painted(app, app.query_one("#op-title").region)
+        assert any(fg.red > 150 and fg.green > 150 and fg.blue < 60 for _, fg, _, _ in runs), (painted, runs)

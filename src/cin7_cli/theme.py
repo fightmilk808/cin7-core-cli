@@ -54,6 +54,34 @@ CIN7_DARK = Theme(
 DEFAULT_THEMES: tuple[Theme, ...] = (CIN7_LIGHT, CIN7_DARK)
 
 
+# Rich markup tag names used for coloured text on the right-hand side (op title,
+# record and JSON trees). `dark` keeps today's tags exactly; `light` is for a light
+# content background and every value is >= 4.5:1 on #f3f5f8 (and on white).
+TAGS_DARK: dict[str, str] = {
+    "dim": "dim",
+    "write": "yellow",
+    "internal": "#d070ff",
+    "print": "#4fd1c5",
+    "number": "cyan",
+    "string": "green",
+    "keyword": "magenta",
+}
+TAGS_LIGHT: dict[str, str] = {
+    "dim": "#566272",
+    "write": "#8a5a00",
+    "internal": "#7a2fc0",
+    "print": "#0e7c74",
+    "number": "#0b6a8a",
+    "string": "#1b6e35",
+    "keyword": "#a3238e",
+}
+
+
+def tags_for(t: Theme) -> dict[str, str]:
+    """Markup tag colours that read on the theme's content background."""
+    return TAGS_DARK if t.dark else TAGS_LIGHT
+
+
 def has_navy_side(t: Theme) -> bool:
     """True if the theme paints the sidebar navy with light text."""
     return t.variables.get("navy-side") == "1"

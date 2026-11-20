@@ -276,30 +276,32 @@ def recolor_for_navy(label: str) -> str:
 CELL_WIDTHS = (24, 60, 160)
 
 
-def json_label(key: object, value: object) -> str:
-    """Tree label for one JSON member, colored by type."""
+def json_label(key: object, value: object, tags: dict[str, str] | None = None) -> str:
+    """Tree label for one JSON member, colored by type (`tags` picks the colours per theme)."""
+    tags = tags or themes_mod.TAGS_DARK
+    dim, kw, num, st = tags["dim"], tags["keyword"], tags["number"], tags["string"]
     k = f"[bold]{rich_escape(str(key))}[/]" if key is not None else ""
     sep = ": " if key is not None else ""
     if isinstance(value, dict):
-        return f"{k} [dim]{{{len(value)}}}[/]"
+        return f"{k} [{dim}]{{{len(value)}}}[/]"
     if isinstance(value, list):
-        return f"{k} [dim]\\[{len(value)}][/]"
+        return f"{k} [{dim}]\\[{len(value)}][/]"
     if value is None:
-        return f"{k}{sep}[magenta]null[/]"
+        return f"{k}{sep}[{kw}]null[/]"
     if isinstance(value, bool):
-        return f"{k}{sep}[magenta]{'true' if value else 'false'}[/]"
+        return f"{k}{sep}[{kw}]{'true' if value else 'false'}[/]"
     if isinstance(value, (int, float)):
         shown = output.money(value) if output.is_money(str(key)) else value
-        return f"{k}{sep}[cyan]{shown}[/]"
+        return f"{k}{sep}[{num}]{shown}[/]"
     text = output.clean_date(str(value))
-    return f"{k}{sep}[green]\"{rich_escape(text[:200])}{'…' if len(text) > 200 else ''}\"[/]"
+    return f"{k}{sep}[{st}]\"{rich_escape(text[:200])}{'…' if len(text) > 200 else ''}\"[/]"
 
 
-def fill_json(node, value: object) -> None:
+def fill_json(node, value: object, tags: dict[str, str] | None = None) -> None:
     """Add `value`'s members under `node`; containers fill lazily when opened."""
     items = value.items() if isinstance(value, dict) else enumerate(value) if isinstance(value, list) else ()
     for k, v in items:
-        label = json_label(k, v)
+        label = json_label(k, v, tags)
         if isinstance(v, (dict, list)) and v:
             node.add(label, data=("lazy", v))
         else:
@@ -420,6 +422,8 @@ class Cin7Tui(App):
     CSS = """
     Header { color: $footer-foreground; }
     .-light-mode Tab { color: $foreground 80%; }
+    .-light-mode Tree > .tree--cursor { background: #1f63c7; color: #ffffff; }
+    .-light-mode Tree:focus > .tree--cursor { background: #1f63c7; color: #ffffff; }
     .-light-mode Tab.-active { color: $foreground; }
     .-light-mode Input > .input--placeholder { color: $foreground 70%; }
     .-light-mode .row Button.multi { color: $foreground; }
@@ -522,6 +526,7 @@ class Cin7Tui(App):
         themes: Sequence[Theme] | None = None,
     ):
         super().__init__()
+        self.tags: dict[str, str] = dict(themes_mod.TAGS_DARK)
         self.themes: list[Theme] = list(themes) if themes else list(themes_mod.DEFAULT_THEMES)
         self.rate = rate
         self.export_dir = export_dir or Path.cwd()
@@ -632,6 +637,7 @@ class Cin7Tui(App):
     def _chrome_for_theme(self, t: Theme) -> None:
         """Navy sidebar for themes that ask for it (the light theme)."""
         self.set_class(themes_mod.has_navy_side(t), "-navy-side")
+        self.tags = dict(themes_mod.tags_for(t))
         if self.is_mounted and self.query("#ops"):
             self._fill_tree(self.query_one("#filter", Input).value)
 
@@ -779,7 +785,7 @@ class Cin7Tui(App):
     def _lazy(self, event: Tree.NodeExpanded) -> None:
         node = event.node
         if isinstance(node.data, tuple) and node.data and node.data[0] == "lazy":
-            fill_json(node, node.data[1])
+            fill_json(node, node.data[1], self.tags)
             node.data = ("done", node.data[1])
 
     @on(Input.Submitted, "#form Input")
@@ -822,7 +828,7 @@ class Cin7Tui(App):
         tree.clear()
         label = row.get("CustomerReference") or row.get("OrderNumber") or row.get("Name") or row.get("SKU") or "record"
         tree.root.set_label(f"[bold]{rich_escape(str(label))}[/]")
-        fill_json(tree.root, row)
+        fill_json(tree.root, row, self.tags)
         tree.root.expand()
         self.query_one("#results", TabbedContent).active = "tab-record"
         tree.focus()
@@ -833,13 +839,14 @@ class Cin7Tui(App):
         """Show `op`'s form and shape."""
         self.op = op
         self._set_mode(op)
+        t = self.tags
         if op.is_public:
-            kind = "[yellow]WRITE · not runnable here[/]" if op.is_write else "read"
+            kind = f"[{t['write']}]WRITE · not runnable here[/]" if op.is_write else "read"
         elif op.runnable:
-            kind = "[#d070ff]INTERNAL read · browser session[/]" + (" · download" if op.file else "")
+            kind = f"[{t['internal']}]INTERNAL read · browser session[/]" + (" · download" if op.file else "")
         else:
-            kind = "[#d070ff]INTERNAL · never sent[/]" if op.source == "web" else "[dim]reference only[/]"
-        self.query_one("#op-title", Static).update(f"cin7 {op.full_name}  [dim]{kind}[/]")
+            kind = f"[{t['internal']}]INTERNAL · never sent[/]" if op.source == "web" else f"[{t['dim']}]reference only[/]"
+        self.query_one("#op-title", Static).update(f"cin7 {op.full_name}  [{t['dim']}]{kind}[/]")
         alias = f" · alias {', '.join(op.aliases)}" if op.aliases else ""
         pages = f" · used on {', '.join(op.pages[:4])}" if op.pages else ""
         self.query_one("#op-meta", Static).update(f"{op.method} {op.path} · {op.title}{alias}{pages}")
@@ -852,11 +859,11 @@ class Cin7Tui(App):
             widget = (ParamSelect(p) if p.type == "bool" else ParamMulti(p)) if p.choices else ParamInput(p, find=r.hint if r else "")
             rows.append(Horizontal(Label(f"{p.name}{star}"), widget, classes="row"))
         if not rows:
-            rows.append(Label("[dim]No query parameters[/]"))
+            rows.append(Label(f"[{self.tags['dim']}]No query parameters[/]"))
         form.remove_class("collapsed")
         form.mount_all(rows)
         if op.read_via_post:
-            form.mount(Horizontal(Label("[dim]JSON query body[/]"), Input(placeholder="{}", id="post-body"), classes="row"))
+            form.mount(Horizontal(Label(f"[{self.tags['dim']}]JSON query body[/]"), Input(placeholder="{}", id="post-body"), classes="row"))
         sendable = first_ok(op)
         box = self.query_one("#all-pages", Checkbox)
         box.disabled = not op.paged or not sendable
@@ -866,7 +873,7 @@ class Cin7Tui(App):
         tree = self.query_one("#shape-tree", Tree)
         tree.clear()
         tree.root.set_label(f"[bold]{op.full_name}[/]")
-        fill_json(tree.root, shape)
+        fill_json(tree.root, shape, self.tags)
         tree.root.expand()
         if not sendable:
             self.query_one("#results", TabbedContent).active = "tab-shape"
@@ -1060,7 +1067,7 @@ class Cin7Tui(App):
         jt = self.query_one("#json-tree", Tree)
         jt.clear()
         jt.root.set_label(f"[bold]{op.full_name}[/]")
-        fill_json(jt.root, data)
+        fill_json(jt.root, data, self.tags)
         jt.root.expand()
         self.query_one("#export", Button).disabled = not self.rows
         total = data.get("Total", data.get("total")) if isinstance(data, dict) else None
@@ -1380,13 +1387,13 @@ class Cin7Tui(App):
         self.data, self.rows, self.cols = snap["data"], snap["rows"], snap["cols"]
         self.hidden, self.sort_col, self.sort_desc, self.search_text = set(), None, False, ""
         self.query_one("#search", Input).value = ""
-        self.query_one("#op-title", Static).update(f"cin7 {self.op.full_name}  [dim]history {self.hpos + 1}/{len(self.history)}[/]")
+        self.query_one("#op-title", Static).update(f"cin7 {self.op.full_name}  [{self.tags['dim']}]history {self.hpos + 1}/{len(self.history)}[/]")
         self._rebuild_view()
         self._fill_group_choices()
         jt = self.query_one("#json-tree", Tree)
         jt.clear()
         jt.root.set_label(f"[bold]{self.op.full_name}[/]")
-        fill_json(jt.root, self.data)
+        fill_json(jt.root, self.data, self.tags)
         jt.root.expand()
         self.set_status(f"{len(self.rows)} rows · from {snap['when']} · history {self.hpos + 1}/{len(self.history)} (< >)")
 
@@ -1434,7 +1441,7 @@ class Cin7Tui(App):
     def _show_print_info(self, pe: printing.PrintEndpoint) -> None:
         self.op = None
         self._set_mode(None)
-        self.query_one("#op-title", Static).update(f"[bold #4fd1c5]⎙ {pe.path}[/]  [dim]{'bulk' if pe.bulk else 'one record'}[/]")
+        self.query_one("#op-title", Static).update(f"[bold {self.tags['print']}]⎙ {pe.path}[/]  [{self.tags['dim']}]{'bulk' if pe.bulk else 'one record'}[/]")
         self.query_one("#op-meta", Static).update(f"Lives on: {pe.where or 'unknown'}")
         form = self.query_one("#form", VerticalScroll)
         form.remove_children()
@@ -1446,14 +1453,14 @@ class Cin7Tui(App):
             if pe.sendable
             else "The map doesn't say what this endpoint takes, so it can't be sent from here."
         )
-        form.mount(Static(how + f"\n[dim]{PRINT_NOTE}[/]"))
+        form.mount(Static(how + f"\n[{self.tags['dim']}]{PRINT_NOTE}[/]"))
         self.query_one("#run", Button).disabled = True
         self.query_one("#all-pages", Checkbox).disabled = True
         tree = self.query_one("#shape-tree", Tree)
         tree.clear()
         tree.root.set_label(f"[bold]{pe.path}[/]")
         fill_json(tree.root, {"method": pe.method, "params": list(pe.params), "effect": pe.effect, "screens": list(pe.pages),
-                              "menu": list(pe.labels), "sendable": pe.sendable})
+                              "menu": list(pe.labels), "sendable": pe.sendable}, self.tags)
         tree.root.expand()
         self.query_one("#results", TabbedContent).active = "tab-shape"
         self.set_status("Print actions are never sent from this view.")
