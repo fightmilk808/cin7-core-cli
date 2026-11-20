@@ -13,6 +13,8 @@ from collections.abc import Sequence
 from textual.app import App
 from textual.theme import Theme
 
+BAR_TEXT = "#f3f5f8"
+
 CIN7_LIGHT = Theme(
     name="cin7-light",
     primary="#2f7ff0",
@@ -26,6 +28,14 @@ CIN7_LIGHT = Theme(
     surface="#ffffff",
     panel="#1c2b41",
     dark=False,
+    variables={
+        # The bars sit on the navy $panel, so their text is light, not $foreground.
+        "footer-foreground": BAR_TEXT,
+        "footer-key-foreground": BAR_TEXT,
+        "footer-description-foreground": BAR_TEXT,
+        # Marks themes whose sidebar is navy too (see Cin7Tui.CSS, `.-navy-side`).
+        "navy-side": "1",
+    },
 )
 
 # Same values Textual's default dark theme uses, so the app looks as it did before.
@@ -42,6 +52,11 @@ CIN7_DARK = Theme(
 )
 
 DEFAULT_THEMES: tuple[Theme, ...] = (CIN7_LIGHT, CIN7_DARK)
+
+
+def has_navy_side(t: Theme) -> bool:
+    """True if the theme paints the sidebar navy with light text."""
+    return t.variables.get("navy-side") == "1"
 
 
 def register(app: App, themes: Sequence[Theme]) -> None:

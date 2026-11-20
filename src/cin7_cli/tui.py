@@ -255,6 +255,24 @@ def leaf_label(o: spec.Operation, style: str = "") -> str:
     return f"[{weight}{style}]{mark}{o.name}[/]" if (style or weight) else f"{mark}{o.name}"
 
 
+# The sidebar's section colours were picked for a dark background. On the navy sidebar
+# (light theme) the ANSI cyan and the darker purples fall below readable contrast, so
+# those tags are swapped for lighter ones. Other themes keep the original tags.
+NAVY_RECOLOR = (
+    ("[bold cyan]", "[bold #7fd6ff]"),
+    ("[cyan]", "[#7fd6ff]"),
+    ("[yellow]", "[#ffd166]"),
+    ("#d070ff", "#d9a8ff"),
+    ("#b58ad8", "#cdb4ee"),
+)
+
+
+def recolor_for_navy(label: str) -> str:
+    for old, new in NAVY_RECOLOR:
+        label = label.replace(old, new)
+    return label
+
+
 CELL_WIDTHS = (24, 60, 160)
 
 
@@ -400,6 +418,23 @@ class Cin7Tui(App):
     TITLE = "cin7"
     SUB_TITLE = ""
     CSS = """
+    Header { color: $footer-foreground; }
+    .-light-mode Tab { color: $foreground 80%; }
+    .-light-mode Tab.-active { color: $foreground; }
+    .-light-mode Input > .input--placeholder { color: $foreground 70%; }
+    .-light-mode .row Button.multi { color: $foreground; }
+    .-light-mode SelectCurrent Static#label { color: $foreground 75%; }
+    .-light-mode SelectCurrent .arrow { color: $foreground 75%; }
+    .-light-mode Button.-primary { background: #1f63c7; color: #ffffff; }
+    .-light-mode Button.-primary:hover, .-light-mode Button.-primary:focus { background: #2a6fd8; color: #ffffff; }
+    .-light-mode #actions Checkbox > .toggle--button { color: #9fb2cc; }
+    .-navy-side #left { background: #1c2b41; color: #f3f5f8; }
+    .-navy-side #left Input { background: #2a3d58; color: #f3f5f8; }
+    .-navy-side #left Input > .input--placeholder { color: #bdcadd; }
+    .-navy-side #left Tree { background: #1c2b41; color: #f3f5f8; }
+    .-navy-side #left Tree > .tree--guides { color: #5d7391; }
+    .-navy-side #left Tree > .tree--cursor { background: #2f7ff0; color: #ffffff; text-style: bold; }
+    .-navy-side #left Tree:focus > .tree--cursor { background: #2f7ff0; color: #ffffff; }
     #modebar { height: 1; padding: 0 1; text-style: bold; }
     #modebar.idle { background: $success 25%; }
     #modebar.public { background: $success 35%; }
@@ -562,6 +597,8 @@ class Cin7Tui(App):
     def on_mount(self) -> None:
         themes_mod.register(self, self.themes)
         self.theme = self.themes[0].name
+        self.theme_changed_signal.subscribe(self, self._chrome_for_theme)
+        self._chrome_for_theme(self.current_theme)
         self._set_mode(None)
         self._apply_sidebar()
         self._fill_tree("")
@@ -591,6 +628,12 @@ class Cin7Tui(App):
                 "saved": self.saved,
             }
         )
+
+    def _chrome_for_theme(self, t: Theme) -> None:
+        """Navy sidebar for themes that ask for it (the light theme)."""
+        self.set_class(themes_mod.has_navy_side(t), "-navy-side")
+        if self.is_mounted and self.query("#ops"):
+            self._fill_tree(self.query_one("#filter", Input).value)
 
     def action_cycle_theme(self) -> None:
         names = [t.name for t in self.themes]
@@ -651,6 +694,10 @@ class Cin7Tui(App):
         tree.root.expand()
         needle = text.lower().strip()
         by_group = spec.groups()
+        navy = themes_mod.has_navy_side(self.current_theme)
+
+        def tint(label: str) -> str:
+            return recolor_for_navy(label) if navy else label
 
         def matches(ops: list[spec.Operation]) -> list[spec.Operation]:
             return [
@@ -665,14 +712,14 @@ class Cin7Tui(App):
             found = [(g, m) for g, m in found if m]
             if not found:
                 return
-            head = tree.root.add(label, data=None, expand=True)
+            head = tree.root.add(tint(label), data=None, expand=True)
             for g, ops in found:
                 sendable = sum(first_ok(o) for o in ops)
                 title = MAIN_TITLES.get(g) or ops[0].group_title.removeprefix("Web · ")
                 counts = "" if self.compact else f" [dim]{sendable}/{len(ops)}[/]" if self.show_writes else f" [dim]{len(ops)}[/]"
-                node = head.add(f"[{style}]{title}[/]{counts}", data=("group", g), expand=bool(needle))
+                node = head.add(tint(f"[{style}]{title}[/]{counts}"), data=("group", g), expand=bool(needle))
                 for o in ops:
-                    node.add_leaf(leaf_label(o, leaf_style), data=o)
+                    node.add_leaf(tint(leaf_label(o, leaf_style)), data=o)
 
         def quick_section(label: str, names: list[str]) -> None:
             ops = [o for o in (op_by_name(n) for n in names) if o is not None and (not needle or needle in o.full_name)]
