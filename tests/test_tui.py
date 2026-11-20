@@ -80,16 +80,16 @@ async def test_internal_write_is_never_sent(mock, monkeypatch, tmp_path):
 
 
 async def test_run_list_fills_table_and_exports(mock, tmp_path):
-    rows = [{"SaleID": "a", "CustomerReference": "#25147", "Lines": [1]}, {"SaleID": "b", "CustomerReference": "#25148"}]
+    rows = [{"SaleID": "a", "CustomerReference": "#10001", "Lines": [1]}, {"SaleID": "b", "CustomerReference": "#10002"}]
     mock.routes[("GET", "/saleList")] = (200, {"Total": 2, "Page": 1, "SaleList": rows}, {})
     app = Cin7Tui(export_dir=tmp_path)
     async with app.run_test(size=(140, 45)) as pilot:
         app.select(spec.find("sale", "list"))
         await pilot.pause()
-        _param(app, "search").value = "#25147"
+        _param(app, "search").value = "#10001"
         await pilot.press("ctrl+r")
         await _settle(app, pilot)
-        assert mock.requests[0]["query"] == {"Search": "#25147"}
+        assert mock.requests[0]["query"] == {"Search": "#10001"}
         assert mock.requests[0]["headers"]["api-auth-applicationkey"] == KEY
         table = app.query_one("#table", DataTable)
         assert table.row_count == 2
@@ -97,7 +97,7 @@ async def test_run_list_fills_table_and_exports(mock, tmp_path):
         await pilot.press("ctrl+e")
         await pilot.pause()
         files = list(tmp_path.glob("cin7-sale-list-*.csv"))
-        assert len(files) == 1 and "#25147" in files[0].read_text()
+        assert len(files) == 1 and "#10001" in files[0].read_text()
 
 
 async def test_all_pages(mock, tmp_path):
@@ -415,13 +415,13 @@ async def test_saved_filters_round_trip(mock, tmp_path):
     async with app.run_test(size=(160, 50)) as pilot:
         app.select(spec.find("sale", "list"))
         await pilot.pause()
-        _param(app, "search").value = "#25147"
+        _param(app, "search").value = "#10001"
         await pilot.press("ctrl+s")
         await pilot.pause()
         app.screen.query_one("#name").value = "this week"
         await pilot.press("enter")
         await pilot.pause()
-        assert app.saved["this week"] == {"op": "sale list", "params": {"Search": "#25147"}, "all_pages": False}
+        assert app.saved["this week"] == {"op": "sale list", "params": {"Search": "#10001"}, "all_pages": False}
         _param(app, "search").value = ""
         await pilot.press("ctrl+o")
         await pilot.pause()
@@ -429,7 +429,7 @@ async def test_saved_filters_round_trip(mock, tmp_path):
         await pilot.pause()
         await _settle(app, pilot)
         await pilot.pause()
-        assert mock.requests[-1]["query"] == {"Search": "#25147"}
+        assert mock.requests[-1]["query"] == {"Search": "#10001"}
         await pilot.press("ctrl+o")
         await pilot.pause()
         await pilot.press("delete")
@@ -619,7 +619,7 @@ async def test_text_in_an_id_field_is_looked_up(mock, tmp_path):
     from cin7_cli.tui import PickScreen
 
     sid = "11111111-2222-3333-4444-555555555555"
-    one = [{"SaleID": sid, "CustomerReference": "#25147", "Customer": "Acme"}]
+    one = [{"SaleID": sid, "CustomerReference": "#10001", "Customer": "Acme"}]
     mock.routes[("GET", "/saleList")] = [(200, {"Total": 1, "Page": 1, "SaleList": one}, {})]
     mock.routes[("GET", "/sale")] = (200, {"ID": sid, "Customer": "Acme"}, {})
     app = Cin7Tui(export_dir=tmp_path)
@@ -627,7 +627,7 @@ async def test_text_in_an_id_field_is_looked_up(mock, tmp_path):
         app.select(spec.find("sale", "get"))
         await pilot.pause()
         assert "ref, SO-" in _param(app, "id").placeholder
-        _param(app, "id").value = "#25147"
+        _param(app, "id").value = "#10001"
         app.action_run()
         await app.workers.wait_for_complete()
         await pilot.pause()
