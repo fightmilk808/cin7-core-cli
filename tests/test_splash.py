@@ -85,6 +85,28 @@ async def test_app_bindings_are_swallowed_while_the_splash_is_up(tmp_path):
         assert app.theme == "cin7-light"  # ctrl+t only skipped the splash
 
 
+async def test_ctrl_q_quits_during_the_splash(tmp_path):
+    app = _app(tmp_path, _long())
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        assert _on_splash(app)
+        await pilot.press("ctrl+q")
+        await pilot.pause()
+        assert app.return_code == 0, "ctrl+q quit the app"
+
+
+async def test_ctrl_c_reaches_the_app_during_the_splash(tmp_path, monkeypatch):
+    seen = []
+    monkeypatch.setattr(Cin7Tui, "action_help_quit", lambda self: seen.append("ctrl+c"), raising=False)
+    app = _app(tmp_path, _long())
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        assert _on_splash(app)
+        await pilot.press("ctrl+c")
+        await pilot.pause()
+        assert seen == ["ctrl+c"]
+
+
 async def test_a_click_skips(tmp_path):
     app = _app(tmp_path, _long())
     async with app.run_test(size=(120, 40)) as pilot:

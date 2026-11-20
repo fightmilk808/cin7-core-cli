@@ -727,3 +727,16 @@ def test_a_walk_that_finishes_is_not_truncated(mock, capsys):
 def test_max_pages_over_the_hard_limit_is_refused_unsent(mock, capsys):
     code, _, err = run(capsys, "sale", "list", "--all-pages", "--max-pages", str(paging.HARD_MAX_PAGES + 1))
     assert code != 0 and mock.requests == [] and "warehouse" in err
+
+
+def test_tui_no_splash_flag_wiring(monkeypatch):
+    pytest.importorskip("textual")
+    from cin7_cli import tui
+
+    calls = []
+    monkeypatch.setattr(tui, "run", lambda rate, show_splash=None: calls.append(show_splash) or 0)
+    assert cli.build_parser().parse_args(["tui", "--no-splash"]).no_splash is True
+    assert cli.main(["tui", "--no-splash"]) == 0
+    monkeypatch.setenv("CIN7_TUI_SPLASH", "1")
+    assert cli.main(["tui"]) == 0
+    assert calls == [False, True]

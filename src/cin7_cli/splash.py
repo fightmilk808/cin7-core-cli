@@ -5,7 +5,7 @@ its own: a different `art` and `gradient`, an async `effect` that draws its own 
 (see `SplashScreen.draw`), and an async `status_provider` whose text appears under the art.
 
 Any key or click skips the splash, and that key is consumed: it never reaches the tree
-behind. Text is always drawn in a readable colour for the active theme: gradient colours
+behind. The exceptions are ctrl+q and ctrl+c, which go to the app so it can quit. Text is always drawn in a readable colour for the active theme: gradient colours
 that would be too faint on the theme's background are darkened (or lightened) just enough.
 
 `CIN7_TUI_SPLASH=0` in the environment, or `cin7 tui --no-splash`, turns it off.
@@ -30,6 +30,7 @@ from textual.widgets import Static
 
 MIN_CONTRAST = 4.5  # WCAG AA for normal text
 FADE_SHARE = 0.6  # the fade takes this share of `seconds`; the rest holds the full wordmark
+QUIT_KEYS = ("ctrl+q", "ctrl+c")  # never swallowed by the splash
 
 Effect = Literal["fade", "none"] | Callable[["SplashScreen"], Awaitable[None]]
 
@@ -279,6 +280,8 @@ class SplashScreen(Screen[None]):
             task.cancel()
 
     def on_key(self, event: events.Key) -> None:
+        if event.key in QUIT_KEYS:
+            return  # let the app quit (or say how to) while the splash is up
         event.stop()
         event.prevent_default()
         self._finish()
