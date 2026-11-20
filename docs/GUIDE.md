@@ -9,7 +9,7 @@ pipx install 'cin7-core-cli[tui] @ git+https://github.com/fightmilk808/cin7-core
 cin7 tui
 ```
 
-![cin7 tui listing sales by customer reference (sample data from the test mock)](tui.svg)
+![cin7 tui, light theme, listing sales by customer reference (invented data)](tui-light.svg)
 
 A [Textual](https://textual.textualize.io) terminal UI over the same spec, client, pacing and auth as the CLI. `?` lists every key.
 
@@ -34,10 +34,66 @@ A [Textual](https://textual.textualize.io) terminal UI over the same spec, clien
 
 Record links come from the route names in the rebuild map's `pages.csv`; open one to check it before relying on it.
 
-![cin7 tui: sales sorted, colored by status, with the mode bar and main groups (sample data from the test mock)](tui.svg)
+![cin7 tui, dark theme: sales coloured by status, with the mode bar and main groups (invented data)](tui.svg)
 
 **Still read-only, full stop.** Write operations can be listed (`m`) so their request shapes can be read, but there is
 no way to send one from the TUI.
+
+### Themes
+
+The TUI starts in `cin7-light` (light content, navy sidebar, header and footer). **`ctrl+t`** cycles to `cin7-dark`, the
+look the app had before themes existed, and back; the choice is not saved. Both are `textual.theme.Theme` objects in
+`cin7_cli.theme` (`CIN7_LIGHT`, `CIN7_DARK`). Pass your own list to `Cin7Tui(themes=[...])`: the first is active at
+start and `ctrl+t` walks the list. A theme whose `variables` contain `"navy-side": "1"` gets the navy sidebar too.
+
+### Splash
+
+A short wordmark fades in at start (0.75 s) and gives way to the tree; any key or click skips it. It is on by default.
+Turn it off with `cin7 tui --no-splash`, or set `CIN7_TUI_SPLASH=0`. `ctrl+q` and `ctrl+c` still quit during it.
+
+![the boot splash, held at full strength](splash.svg)
+
+For your own app, pass a `cin7_cli.splash.Splash` as `Cin7Tui(splash=...)` (`None` for none):
+
+| Field | |
+|---|---|
+| `art`, `gradient` | the wordmark and the hex colours spread over its lines, top to bottom (darkened or lightened as needed to stay readable on the theme) |
+| `effect` | `"fade"`, `"none"`, or an `async def effect(screen)` that draws its own frames with `screen.draw(text)` |
+| `seconds`, `tagline` | how long it stays at most, and a line under the art |
+| `status_provider` | `async def () -> str`, awaited once; its text goes on a status line ("?" if it raises) |
+
+`Cin7Tui(show_splash=True|False)` overrides the environment.
+
+### Extending the TUI
+
+Each top-level section of the sidebar is a `CollectionProvider` (`cin7_cli.providers`). The built-in ones are
+`QuickViewsProvider` and `OperationsProvider`; `Cin7Tui(providers=[...])` replaces the list (pinned and recent
+operations always come first). A provider needs a `title`, `nodes(filter_text)` and `run(app, node)`:
+
+```python
+from cin7_cli.providers import Node, OperationsProvider
+from cin7_cli.tui import Cin7Tui
+
+class Watchlist:
+    title = "Watchlist"
+    expanded = True                       # optional: start open (default)
+
+    def nodes(self, filter_text: str) -> list[Node]:
+        picks = [("ABC-1", 90), ("ABC-2", 40), ("ABC-3", 5)]      # your data; no network in here
+        return [Node(id=s, label=s, icon="●", heat=h, data=s)
+                for s, h in picks if filter_text.lower() in s.lower()]
+
+    def run(self, app: Cin7Tui, node: Node) -> None:
+        app.notify(f"Open {node.data}")   # enter on a leaf the TUI does not handle itself
+
+Cin7Tui(providers=[Watchlist(), OperationsProvider()]).run()
+```
+
+A `Node` has `id`, `label` (Rich markup: escape text that is not yours), `icon`, `heat` (0-100, drawn as a bar before the
+row), `children` (a branch if any), `expanded`, `data` and `style`. `nodes` runs on every filter keystroke and theme
+change, so keep it quick; if it raises, that section shows one error row and the rest keeps working. An optional
+`attach(app)` is called once before the first `nodes` call. Leaves whose `data` is a `spec.Operation` (or the
+`("quick", key)`, `("print", endpoint)` and `("group", name)` tuples) are run by the TUI itself.
 
 ## Text instead of ids
 

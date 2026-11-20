@@ -452,3 +452,23 @@ async def test_sidebar_scrollbar_thumb_is_visible(tmp_path, size):
                 assert track == {(0x1C, 0x2B, 0x41)}, "track is the navy panel"
             await pilot.press("ctrl+t")
             await _settled(app, pilot)
+
+
+async def test_light_theme_table_header_is_readable(mock, tmp_path):
+    from textual.widgets import DataTable
+
+    rows = [{"SaleID": "a", "CustomerReference": "#10001", "Status": "SHIPPED", "Customer": "Example"}]
+    mock.routes[("GET", "/saleList")] = (200, {"Total": 1, "Page": 1, "SaleList": rows}, {})
+    app = Cin7Tui(export_dir=tmp_path, themes=[theme.CIN7_LIGHT])
+    async with app.run_test(size=(140, 40)) as pilot:
+        await _settled(app, pilot)
+        app.select(spec.find("sale", "list"))
+        await _settled(app, pilot)
+        app.action_run()
+        await _settled(app, pilot)
+        table = app.query_one("#table", DataTable)
+        assert table.row_count == 1
+        region = table.region
+        header = _painted(app, region.__class__(region.x, region.y, region.width, 1))  # the header line
+        assert any(text == "CustomerReference" for text, *_ in header), "header text was not painted"
+        assert not _low_contrast(header), "table header"

@@ -4,10 +4,12 @@
 [![Zero deps](https://img.shields.io/badge/runtime%20deps-0-2ea44f)](pyproject.toml)
 [![Read only by default](https://img.shields.io/badge/writes-off%20by%20default-f0883e)](#safety)
 [![MCP](https://img.shields.io/badge/MCP-server-8957e5)](#mcp-server)
-[![Tests](https://img.shields.io/badge/tests-118%20passing-2ea44f)](tests/)
+[![Tests](https://img.shields.io/badge/tests-185%20passing-2ea44f)](tests/)
 [![MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 **Every Cin7 Core public API v2 operation as a command, a terminal UI, and an MCP server.** Generated from the [cin7-core-rebuild](https://github.com/fightmilk808/cin7-core-rebuild) map.
+
+![cin7 tui, light theme: a sale list with the navy sidebar (invented data)](docs/tui-light.svg)
 
 ![cin7: find an operation, list suppliers, a write refused (invented data)](docs/cli.gif)
 
@@ -69,7 +71,9 @@ cin7 auth test
 
 ## TUI
 
-![cin7 tui (sample data)](docs/tui.svg)
+Light by default, dark on `ctrl+t` (the dark one is below):
+
+![cin7 tui, dark theme (invented data)](docs/tui.svg)
 
 | Key | Does | Key | Does |
 |:-:|---|:-:|---|
@@ -81,7 +85,39 @@ cin7 auth test
 
 A short wordmark splash fades in at start; any key skips it. Turn it off with `cin7 tui --no-splash` or `CIN7_TUI_SPLASH=0`.
 
+![cin7 tui boot splash (wordmark held at full strength)](docs/splash.svg)
+
 More: [docs/GUIDE.md](docs/GUIDE.md#tui).
+
+## Extend it
+
+`Cin7Tui` is a library too. Each top-level sidebar section is a `CollectionProvider`; pass your own next to (or instead of) the built-in ones, plus your own themes and splash:
+
+```python
+from textual.theme import Theme
+from cin7_cli.providers import CollectionProvider, Node, QuickViewsProvider
+from cin7_cli.splash import Splash
+from cin7_cli.theme import CIN7_LIGHT
+from cin7_cli.tui import Cin7Tui
+
+class Watchlist:
+    title = "Watchlist"
+
+    def nodes(self, filter_text: str) -> list[Node]:
+        rows = [("ABC-1", 90), ("ABC-2", 40), ("ABC-3", 5)]  # your data; keep this call fast
+        return [Node(id=sku, label=sku, icon="●", heat=heat, data=sku)
+                for sku, heat in rows if filter_text.lower() in sku.lower()]
+
+    def run(self, app: Cin7Tui, node: Node) -> None:
+        app.notify(f"Open {node.data}")
+
+night = Theme(name="night", primary="#7aa2f7", dark=True)
+splash = Splash(art="MY APP", gradient=["#7aa2f7", "#bb9af7"], tagline="loading…", seconds=0.5)
+
+Cin7Tui(providers=[Watchlist(), QuickViewsProvider()], themes=[CIN7_LIGHT, night], splash=splash).run()
+```
+
+Details, the `Node` fields and custom splash effects: [docs/GUIDE.md](docs/GUIDE.md#extending-the-tui).
 
 ## MCP server
 

@@ -399,6 +399,10 @@ class Cin7Tui(App):
     .-light-mode Button.-primary { background: #1f63c7; color: #ffffff; }
     .-light-mode Button.-primary:hover, .-light-mode Button.-primary:focus { background: #2a6fd8; color: #ffffff; }
     .-light-mode #actions Checkbox > .toggle--button { color: #9fb2cc; }
+    /* Table header: Textual paints it with the navy $panel, which swallows the dark text. */
+    .-light-mode DataTable > .datatable--header { background: #dde5f0; color: #1d2633; text-style: bold; }
+    .-light-mode DataTable > .datatable--header-hover { background: #c9d6e8; color: #1d2633; }
+    .-light-mode DataTable > .datatable--header-cursor { background: #2f7ff0; color: #ffffff; }
     .-navy-side #left { background: #1c2b41; color: #f3f5f8; }
     .-navy-side #left Input { background: #2a3d58; color: #f3f5f8; }
     .-navy-side #left Input > .input--placeholder { color: #bdcadd; }
