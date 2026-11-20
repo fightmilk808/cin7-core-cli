@@ -25,8 +25,13 @@ def _param(app, flag: str) -> Input:
     return app.query_one(f"#p-{flag}", ParamInput)
 
 
+def _all_ops(tree):
+    """The "All operations" section's head; MAIN, PUBLIC API, INTERNAL, ... are its children."""
+    return next(h for h in tree.root.children if "All operations" in str(h.label))
+
+
 def _groups(tree):
-    return [(h, g) for h in tree.root.children for g in h.children if isinstance(g.data, tuple) and g.data[0] == "group"]
+    return [(h, g) for h in _all_ops(tree).children for g in h.children if isinstance(g.data, tuple) and g.data[0] == "group"]
 
 
 async def test_tree_sections_and_main_groups_first(tmp_path):
@@ -36,15 +41,18 @@ async def test_tree_sections_and_main_groups_first(tmp_path):
         tree = app.query_one("#ops", Tree)
         app._fill_tree("")
         await pilot.pause()
-        heads = [str(h.label) for h in tree.root.children]
+        tops = [str(h.label) for h in tree.root.children]
+        assert "Quick views" in tops[0] and "All operations" in tops[1]
+        assert _all_ops(tree).is_expanded
+        heads = [str(h.label) for h in _all_ops(tree).children]
         assert "MAIN" in heads[0] and "PUBLIC API" in heads[1] and "INTERNAL" in heads[2]
         assert "PRINT" in heads[3] and "REFERENCE" in heads[4]
-        main = [g.data[1] for g in tree.root.children[0].children]
+        main = [g.data[1] for g in _all_ops(tree).children[0].children]
         assert main == ["product", "sale", "stock", "production", "purchase"]
         groups = _groups(tree)
         assert len(groups) == len(spec.groups())
         assert sum(len(g.children) for _, g in groups) == len(spec.operations())
-        assert len(tree.root.children[3].children) == len(printing.endpoints())
+        assert len(_all_ops(tree).children[3].children) == len(printing.endpoints())
         app.query_one("#filter", Input).value = "saleList"
         await pilot.pause()
         assert [g.data[1] for _, g in _groups(tree)][0] == "sale"
@@ -173,7 +181,7 @@ async def test_row_select_shows_record(mock, tmp_path):
 
 
 def _ops_in_tree(tree):
-    return [n.data for h in tree.root.children for g in h.children for n in g.children]
+    return [n.data for h in _all_ops(tree).children for g in h.children for n in g.children]
 
 
 async def test_writes_hidden_by_default_and_toggle(tmp_path):
@@ -183,7 +191,7 @@ async def test_writes_hidden_by_default_and_toggle(tmp_path):
         assert not app.show_writes
         shown = _ops_in_tree(tree)
         assert shown and all(first_ok(o) for o in shown)
-        assert not any("Reference" in str(h.label) for h in tree.root.children)
+        assert not any("REFERENCE" in str(h.label) for h in _all_ops(tree).children)
         await pilot.press("m")
         await pilot.pause()
         everything = _ops_in_tree(tree)
@@ -346,7 +354,7 @@ async def test_sidebar_toggle_resize_compact_and_persist(tmp_path):
         await pilot.press("right_square_bracket")
         assert app.sidebar_width == w + 4
         await pilot.press("c")
-        assert app.compact and "[dim]" not in str(app.query_one("#ops", Tree).root.children[0].children[0].label).split("]")[-1:][0]
+        assert app.compact and "[dim]" not in str(_all_ops(app.query_one("#ops", Tree)).children[0].children[0].label).split("]")[-1:][0]
     again = Cin7Tui(export_dir=tmp_path)
     assert again.sidebar_width == w + 4 and again.compact
 

@@ -51,44 +51,26 @@ from textual.widgets import (
 from . import auth, output, paging, printing, ratelimit, resolve, rowtools, runner, spec
 from .cli import TYPE_HINT, TYPES
 from .client import ApiError, base_url
+from . import providers as providers_mod
 from . import splash as splash_mod
+from .providers import (  # noqa: F401  (re-exported: older imports use cin7_cli.tui)
+    MAIN_GROUPS,
+    MAIN_TITLES,
+    MAIN_WEB,
+    QUICK_VIEWS,
+    first_ok,
+    is_list,
+    leaf_label,
+    op_by_name,
+)
 from . import theme as themes_mod
 from .safety import PRINT_NOTE
 from .ratelimit import DEFAULT_PER_MIN
 
 MAX_TABLE_ROWS = 5000
 
-# Public groups pinned to the top, in this order, and the names they go by.
-MAIN_GROUPS = ["product", "sale", "stock", "production", "purchase"]
-MAIN_TITLES = {
-    "product": "Products",
-    "sale": "Sales",
-    "stock": "Transfers · Stock",
-    "production": "Production",
-    "purchase": "Purchases",
-}
-MAIN_WEB = {"inventory", "sale", "production", "purchase", "mrp"}
-
-
-# One-key read-only views: (key, label, op group, op name, query params, after-run tweaks).
-# Status values come from the Blueprint's value lists; check them against your data.
-QUICK_VIEWS = (
-    ("1", "Open production orders", "production", "order-list", {"Limit": "100"}, {"hide_done": True, "sort": "RequiredByDate"}),
-    ("2", "Sales waiting on stock", "sale", "list",
-     {"Limit": "100", "OrderStatus": "AUTHORISED", "CombinedPickStatus": "NOT AVAILABLE"}, {}),
-    ("3", "Latest MRP run (internal)", "web-mrp", "mrp-v-mrp", {"limit": "25", "page": "1", "start": "0"},
-     {"sort": "date", "desc": True}),
-    ("4", "Sales awaiting shipment", "sale", "list",
-     {"Limit": "100", "OrderStatus": "AUTHORISED", "CombinedShippingStatus": "NOT SHIPPED"}, {"sort": "ShipBy"}),
-)
 MAX_RECENT = 8
 MAX_HISTORY = 30
-
-
-def op_by_name(full_name: str) -> spec.Operation | None:
-    """`group name` back to its operation."""
-    group, _, name = full_name.partition(" ")
-    return spec.find(group, name)
 
 
 class NameScreen(ModalScreen):
@@ -229,31 +211,6 @@ class HelpScreen(ModalScreen):
 
     def action_close(self) -> None:
         self.dismiss(None)
-
-
-def first_ok(o: spec.Operation) -> bool:
-    """Can this operation be sent from the TUI?"""
-    return (o.is_public and not o.is_write) or (not o.is_public and o.runnable)
-
-
-def is_list(o: spec.Operation) -> bool:
-    """A list view (as opposed to one record or an action): these are bold in the sidebar."""
-    return o.name == "list" or o.name.endswith("-list") or o.paged
-
-
-def leaf_label(o: spec.Operation, style: str = "") -> str:
-    """Tree label: bold for lists, ✎ for writes, ⬇ for downloads, ⛔ for internal ones that are never sent."""
-    if o.is_public:
-        if o.is_write:
-            return f"[yellow]✎ {o.name}[/]"
-        return f"[bold]{o.name}[/]" if is_list(o) else o.name
-    if o.source != "web":
-        return f"[dim]· {o.name}[/]"
-    if not o.runnable:
-        return f"[dim strike]⛔ {o.name}[/]"
-    mark = "⬇ " if o.file else "↻ " if o.read_via_post else ""
-    weight = "bold " if is_list(o) else ""
-    return f"[{weight}{style}]{mark}{o.name}[/]" if (style or weight) else f"{mark}{o.name}"
 
 
 # The sidebar's section colours were picked for a dark background. On the navy sidebar
@@ -536,10 +493,23 @@ class Cin7Tui(App):
         themes: Sequence[Theme] | None = None,
         splash: splash_mod.Splash | None = splash_mod.CIN7_SPLASH,
         show_splash: bool | None = None,
+        providers: Sequence[providers_mod.CollectionProvider] | None = None,
     ):
         """`splash` is what the boot splash shows (None: none). `show_splash` None follows
-        `CIN7_TUI_SPLASH` (on unless "0"); True or False overrides it."""
+        `CIN7_TUI_SPLASH` (on unless "0"); True or False overrides it.
+
+        `providers` are the sidebar's top-level sections, in order (see `cin7_cli.providers`);
+        None means Quick views then All operations. Pinned and recent operations always
+        come first."""
         super().__init__()
+        self.providers: list[providers_mod.CollectionProvider] = (
+            providers_mod.default_providers() if providers is None else list(providers)
+        )
+        for p in self.providers:
+            attach = getattr(p, "attach", None)
+            if callable(attach):
+                attach(self)
+        self._provider_leaves: dict = {}  # tree node id -> (provider, Node), for leaves the TUI hands back
         self.splash_cfg = splash
         self.show_splash = splash_mod.enabled(False) if show_splash is None else show_splash
         self.tags: dict[str, str] = dict(themes_mod.TAGS_DARK)
@@ -732,39 +702,18 @@ class Cin7Tui(App):
             bar.set_class(c == cls, c)
 
     def _fill_tree(self, text: str) -> None:
+        """Rebuild the sidebar: pinned and recent operations, then one section per provider."""
         tree = self.query_one("#ops", Tree)
         tree.show_root = False
-        tree.guide_depth = 3
+        tree.guide_depth = 2
         tree.clear()
         tree.root.expand()
+        self._provider_leaves = {}
         needle = text.lower().strip()
-        by_group = spec.groups()
         navy = themes_mod.has_navy_side(self.current_theme)
 
         def tint(label: str) -> str:
             return recolor_for_navy(label) if navy else label
-
-        def matches(ops: list[spec.Operation]) -> list[spec.Operation]:
-            return [
-                o
-                for o in ops
-                if (self.show_writes or first_ok(o))
-                and (not needle or needle in f"{o.group} {o.name} {o.path} {o.resource} {o.title}".lower())
-            ]
-
-        def section(label: str, groups: list[str], style: str, leaf_style: str = "") -> None:
-            found = [(g, matches(by_group[g])) for g in groups if g in by_group]
-            found = [(g, m) for g, m in found if m]
-            if not found:
-                return
-            head = tree.root.add(tint(label), data=None, expand=True)
-            for g, ops in found:
-                sendable = sum(first_ok(o) for o in ops)
-                title = MAIN_TITLES.get(g) or ops[0].group_title.removeprefix("Web · ")
-                counts = "" if self.compact else f" [dim]{sendable}/{len(ops)}[/]" if self.show_writes else f" [dim]{len(ops)}[/]"
-                node = head.add(tint(f"[{style}]{title}[/]{counts}"), data=("group", g), expand=bool(needle))
-                for o in ops:
-                    node.add_leaf(tint(leaf_label(o, leaf_style)), data=o)
 
         def quick_section(label: str, names: list[str]) -> None:
             ops = [o for o in (op_by_name(n) for n in names) if o is not None and (not needle or needle in o.full_name)]
@@ -774,22 +723,28 @@ class Cin7Tui(App):
             for o in ops:
                 head.add_leaf(f"{o.full_name}", data=o)
 
+        def add(parent, nodes: list[providers_mod.Node], provider) -> None:
+            for n in nodes:
+                label = tint(providers_mod.render_label(n))
+                if n.children:
+                    add(parent.add(label, data=n.data, expand=n.expanded), n.children, provider)
+                else:
+                    leaf = parent.add_leaf(label, data=n.data)
+                    self._provider_leaves[leaf.id] = (provider, n)
+
         quick_section("[bold]◆ PINNED[/]", self.pins)
         quick_section("[bold]↺ RECENT[/]", [n for n in self.recent if n not in self.pins][:MAX_RECENT])
-        public = [g for g, ops in by_group.items() if ops[0].is_public]
-        section("[bold]★ MAIN[/]", [g for g in MAIN_GROUPS if g in public], "bold black on #ffb454")
-        section("[bold cyan]◇ PUBLIC API[/] [dim]· API key[/]", [g for g in public if g not in MAIN_GROUPS], "cyan")
-        web = [g for g, ops in by_group.items() if ops[0].source == "web"]
-        web.sort(key=lambda g: (g.removeprefix("web-") not in MAIN_WEB, g))
-        section("[bold #d070ff]⬢ INTERNAL[/] [dim]· your login · reads only[/]", web, "#d070ff", "#b58ad8")
-        prints = [p for p in printing.endpoints() if not needle or needle in f"{p.path} {p.where}".lower()]
-        if prints:
-            head = tree.root.add("[bold #4fd1c5]⎙ PRINT[/] [dim]· where printing lives[/]", data=None, expand=bool(needle))
-            for pe in prints:
-                mark = "" if pe.sendable else " [dim](not mapped)[/]"
-                head.add_leaf(f"[#4fd1c5]{pe.path}[/] [dim]{'bulk' if pe.bulk else 'one'}[/]{mark}", data=("print", pe))
-        ref = [g for g, ops in by_group.items() if ops[0].source in ("wms", "mes", "report-service")]
-        section("[bold dim]▫ REFERENCE[/] [dim]· never sent[/]", ref, "dim")
+        for provider in self.providers:
+            title = str(getattr(provider, "title", "") or type(provider).__name__)
+            try:
+                nodes = list(provider.nodes(text.strip()))
+            except Exception as e:  # one broken section must not take the sidebar down
+                nodes = [providers_mod.Node(id="error", label=f"[red]error: {rich_escape(str(e) or type(e).__name__)}[/]")]
+                self.log_line(f"[red]sidebar section {rich_escape(title)}: {rich_escape(repr(e))}[/]")
+            if not nodes:
+                continue
+            head = tree.root.add(tint(f"[bold]{title}[/]"), data=None, expand=bool(getattr(provider, "expanded", True)))
+            add(head, nodes, provider)
 
     # --- events -------------------------------------------------------------
 
@@ -817,6 +772,14 @@ class Cin7Tui(App):
             self.select(data)
         elif isinstance(data, tuple) and data and data[0] == "print":
             self._show_print_info(data[1])
+        elif isinstance(data, tuple) and data and data[0] == "quick":
+            self.action_quick(data[1])
+        elif event.node.id in self._provider_leaves:
+            provider, node = self._provider_leaves[event.node.id]
+            try:
+                provider.run(self, node)
+            except Exception as e:
+                self.notify(f"{node.label}: {e}", severity="error", markup=False)
         else:
             event.node.toggle()
 

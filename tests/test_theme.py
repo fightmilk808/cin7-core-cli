@@ -360,3 +360,46 @@ async def test_ctrl_t_recolours_content_that_is_already_on_screen(tmp_path):
         assert app.theme == "cin7-light"
         for name, runs in (await _everything(app, pilot)).items():
             assert runs and not _low_contrast(runs), f"light after cycling, {name}"
+
+
+BARS = "▁▂▃▄▅▆▇█"
+
+
+class _HeatProvider:
+    """A custom section with heat prefixes and coloured labels, as another app would add."""
+
+    title = "[bold cyan]Hot items[/]"
+
+    def nodes(self, filter_text):
+        from cin7_cli.providers import Node
+
+        return [Node(id=str(h), label=f"item {h}", icon="●", heat=h, style="cyan") for h in (100, 60, 30, 0)]
+
+    def run(self, app, node):
+        pass
+
+
+async def test_light_sidebar_custom_provider_with_heat_is_readable(tmp_path):
+    from textual.widgets import Tree
+
+    from cin7_cli import providers
+
+    app = Cin7Tui(export_dir=tmp_path, themes=[theme.CIN7_LIGHT, theme.CIN7_DARK],
+                  providers=[_HeatProvider(), providers.QuickViewsProvider(), providers.OperationsProvider()])
+
+    def ink(c):
+        return c.isalnum() or c in BARS
+
+    async with app.run_test(size=(140, 45)) as pilot:
+        await _settled(app, pilot)
+        app.query_one("#table").focus()  # keep the tree cursor off the rows being measured
+        await _settled(app, pilot)
+        for when in ("light start", "light after ctrl+t twice"):
+            # the tree's rows only: its scrollbar is drawn with the same block characters
+            runs = _painted(app, app.query_one("#ops", Tree).scrollable_content_region, ink=ink)
+            assert len([r for r in runs if any(c in BARS for c in r[0])]) >= 4, f"{when}: heat prefixes painted"
+            assert any("Hot" in r[0] for r in runs), f"{when}: section title painted"
+            assert not _low_contrast(runs), f"{when}: {_low_contrast(runs)}"
+            await pilot.press("ctrl+t", "ctrl+t")
+            await _settled(app, pilot)
+            assert app.theme == "cin7-light"
