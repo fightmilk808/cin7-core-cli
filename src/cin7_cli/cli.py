@@ -133,6 +133,7 @@ def build_parser(only_group: str | None = "*") -> argparse.ArgumentParser:
 
     tui = top.add_parser("tui", help="browse and run read operations in a terminal UI (needs the tui extra)")
     tui.add_argument("--rate", type=float, default=float(auth.setting("CIN7_RATE_PER_MIN", str(DEFAULT_PER_MIN))))
+    tui.add_argument("--no-splash", action="store_true", help="skip the boot splash (or set CIN7_TUI_SPLASH=0)")
 
     top.add_parser("mcp", help="run an MCP server on stdio: map lookups and public API reads, no writes")
 
@@ -490,11 +491,11 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_print(args)
     if args.command == "tui":
         try:
-            from . import tui
+            from . import splash, tui
         except ImportError:
             print("cin7: the TUI needs Textual: pip install 'cin7-core-cli[tui]'", file=sys.stderr)
             return EXIT_USAGE
-        return tui.run(args.rate)
+        return tui.run(args.rate, show_splash=splash.enabled(args.no_splash))
     if args.command == "mcp":
         from . import mcp
 

@@ -51,6 +51,7 @@ from textual.widgets import (
 from . import auth, output, paging, printing, ratelimit, resolve, rowtools, runner, spec
 from .cli import TYPE_HINT, TYPES
 from .client import ApiError, base_url
+from . import splash as splash_mod
 from . import theme as themes_mod
 from .safety import PRINT_NOTE
 from .ratelimit import DEFAULT_PER_MIN
@@ -533,8 +534,14 @@ class Cin7Tui(App):
         rate: float = DEFAULT_PER_MIN,
         export_dir: Path | None = None,
         themes: Sequence[Theme] | None = None,
+        splash: splash_mod.Splash | None = splash_mod.CIN7_SPLASH,
+        show_splash: bool | None = None,
     ):
+        """`splash` is what the boot splash shows (None: none). `show_splash` None follows
+        `CIN7_TUI_SPLASH` (on unless "0"); True or False overrides it."""
         super().__init__()
+        self.splash_cfg = splash
+        self.show_splash = splash_mod.enabled(False) if show_splash is None else show_splash
         self.tags: dict[str, str] = dict(themes_mod.TAGS_DARK)
         self.themes: list[Theme] = list(themes) if themes else list(themes_mod.DEFAULT_THEMES)
         self.rate = rate
@@ -622,6 +629,8 @@ class Cin7Tui(App):
         dl.add_columns("When", "What", "Saved to")
         self._fill_downloads()
         self.log_line(f"API root {base_url()} · {self.rate:g} calls/min shared with every cin7 process")
+        if self.show_splash and self.splash_cfg is not None:
+            self.push_screen(splash_mod.SplashScreen(self.splash_cfg))
 
     # --- sidebar -------------------------------------------------------------
 
@@ -1648,7 +1657,7 @@ class Cin7Tui(App):
         self.query_one("#log", RichLog).write(text)
 
 
-def run(rate: float = DEFAULT_PER_MIN) -> int:
-    """Start the TUI. Returns an exit code."""
-    Cin7Tui(rate=rate).run()
+def run(rate: float = DEFAULT_PER_MIN, show_splash: bool | None = None) -> int:
+    """Start the TUI. Returns an exit code. `show_splash` None follows CIN7_TUI_SPLASH."""
+    Cin7Tui(rate=rate, show_splash=show_splash).run()
     return 0

@@ -23,7 +23,7 @@ cin7-mcp = "cin7_cli.mcp:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-cin7_cli = ["spec.json"]
+cin7_cli = ["spec.json", "art/*.txt"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

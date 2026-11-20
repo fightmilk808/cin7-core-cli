@@ -108,8 +108,8 @@ def _rgb(color: Color | None):
     return color.get_truecolor() if color is not None else None
 
 
-def _painted(app, region, keep=lambda style: True):
-    """(text, fg, bg, bold) for every run of letters or digits painted inside a region.
+def _painted(app, region, keep=lambda style: True, ink=str.isalnum):
+    """(text, fg, bg, bold) for every run of ink painted inside a region (letters and digits by default).
 
     Disabled controls are skipped: WCAG exempts them, and they are meant to look dim.
     """
@@ -124,7 +124,7 @@ def _painted(app, region, keep=lambda style: True):
             at = x
             x += width
             style = seg.style
-            if style is None or not any(c.isalnum() for c in seg.text) or not keep(style):
+            if style is None or not any(ink(c) for c in seg.text) or not keep(style):
                 continue
             if any(r.x <= at < r.x + r.width and r.y <= y < r.y + r.height for r in disabled):
                 continue

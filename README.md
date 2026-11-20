@@ -79,6 +79,8 @@ cin7 auth test
 | `p` | pin operation | `ctrl+s` | save filters |
 | `Space` · `P` | mark rows · print | `?` | every key |
 
+A short wordmark splash fades in at start; any key skips it. Turn it off with `cin7 tui --no-splash` or `CIN7_TUI_SPLASH=0`.
+
 More: [docs/GUIDE.md](docs/GUIDE.md#tui).
 
 ## MCP server
