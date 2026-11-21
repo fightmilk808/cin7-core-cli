@@ -45,7 +45,26 @@ no way to send one from the TUI.
 The TUI starts in `cin7-light` (light content, navy sidebar, header and footer). **`ctrl+t`** cycles to `cin7-dark`, the
 look the app had before themes existed, and back; the choice is not saved. Both are `textual.theme.Theme` objects in
 `cin7_cli.theme` (`CIN7_LIGHT`, `CIN7_DARK`). Pass your own list to `Cin7Tui(themes=[...])`: the first is active at
-start and `ctrl+t` walks the list. A theme whose `variables` contain `"navy-side": "1"` gets the navy sidebar too.
+start and `ctrl+t` walks the list.
+
+A theme tunes the TUI through its `variables`. All are optional; any `sidebar-*` or `light-*` one it leaves out is
+derived from the theme's own `$panel`, `$primary`, `$background` and `$foreground`
+(`cin7_cli.theme.derived_variables`), never taken from Cin7's palette.
+
+| Variable | Used for |
+|---|---|
+| `sidebar-on-panel` | `"1"`: paint the sidebar in `$panel` with `$footer-foreground` text (cin7-light's navy sidebar). Set `footer-foreground` to a colour that reads on your `$panel`. |
+| `sidebar-input-background`, `sidebar-placeholder`, `sidebar-guides` | the filter box, its hint text and the tree guides on that sidebar |
+| `sidebar-cursor-background`, `sidebar-cursor-foreground` | the sidebar tree cursor (default `$primary`) |
+| `sidebar-scrollbar`, `sidebar-scrollbar-hover`, `sidebar-scrollbar-active` | the sidebar scrollbar thumb (on the `$panel` track; dark themes use it too) |
+| `light-cursor-background`, `light-cursor-foreground`, `light-button-hover` | light themes: tree and table cursor, the Run button |
+| `light-header-background`, `light-header-hover`, `light-header-foreground`, `light-toggle` | light themes: table header, unticked checkboxes |
+| `tag-dim`, `tag-write`, `tag-internal`, `tag-print`, `tag-number`, `tag-string`, `tag-keyword` | coloured text on the right: op title, record and JSON trees (defaults `theme.TAGS_DARK` / `TAGS_LIGHT`, picked by `dark`) |
+| `row-red`, `row-green`, `row-yellow` (or `row-amber`) | whole-row status colours in tables (defaults `theme.ROW_DARK` / `ROW_LIGHT`) |
+
+On a `sidebar-on-panel` sidebar, `cin7_cli.tui.PANEL_RECOLOR` swaps colours picked for a dark background (ANSI cyan
+and yellow, two purples) for lighter ones in **every** sidebar row, including your providers' `style` and markup
+labels: a row styled `"cyan"` is drawn `#7fd6ff` there.
 
 ### Splash
 

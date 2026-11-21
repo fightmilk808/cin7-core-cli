@@ -213,10 +213,12 @@ class HelpScreen(ModalScreen):
         self.dismiss(None)
 
 
-# The sidebar's section colours were picked for a dark background. On the navy sidebar
-# (light theme) the ANSI cyan and the darker purples fall below readable contrast, so
-# those tags are swapped for lighter ones. Other themes keep the original tags.
-NAVY_RECOLOR = (
+# The sidebar's section colours were picked for a dark background. On a sidebar painted in
+# the theme's $panel (`"sidebar-on-panel": "1"`, e.g. the navy one of cin7-light) the ANSI
+# cyan and the darker purples fall below readable contrast, so those tags are swapped for
+# lighter ones. This applies to every sidebar row, a host provider's `style` and markup
+# labels included. Other themes keep the original tags.
+PANEL_RECOLOR = (
     ("[bold cyan]", "[bold #7fd6ff]"),
     ("[cyan]", "[#7fd6ff]"),
     ("[yellow]", "[#ffd166]"),
@@ -225,8 +227,9 @@ NAVY_RECOLOR = (
 )
 
 
-def recolor_for_navy(label: str) -> str:
-    for old, new in NAVY_RECOLOR:
+def recolor_for_panel(label: str) -> str:
+    """`label` with the `PANEL_RECOLOR` swaps applied."""
+    for old, new in PANEL_RECOLOR:
         label = label.replace(old, new)
     return label
 
@@ -389,38 +392,51 @@ class Cin7Tui(App):
     CSS = """
     Header { color: $footer-foreground; }
     .-light-mode Tab { color: $foreground 80%; }
-    .-light-mode Tree > .tree--cursor { background: #1f63c7; color: #ffffff; }
-    .-light-mode Tree:focus > .tree--cursor { background: #1f63c7; color: #ffffff; }
+    .-light-mode Tree > .tree--cursor { background: $light-cursor-background; color: $light-cursor-foreground; }
+    .-light-mode Tree:focus > .tree--cursor { background: $light-cursor-background; color: $light-cursor-foreground; }
     .-light-mode Tab.-active { color: $foreground; }
     .-light-mode Input > .input--placeholder { color: $foreground 70%; }
     .-light-mode .row Button.multi { color: $foreground; }
     .-light-mode SelectCurrent Static#label { color: $foreground 75%; }
     .-light-mode SelectCurrent .arrow { color: $foreground 75%; }
-    .-light-mode Button.-primary { background: #1f63c7; color: #ffffff; }
-    .-light-mode Button.-primary:hover, .-light-mode Button.-primary:focus { background: #2a6fd8; color: #ffffff; }
-    .-light-mode #actions Checkbox > .toggle--button { color: #9fb2cc; }
-    /* Table header: Textual paints it with the navy $panel, which swallows the dark text. */
-    .-light-mode DataTable > .datatable--header { background: #dde5f0; color: #1d2633; text-style: bold; }
-    .-light-mode DataTable > .datatable--header-hover { background: #c9d6e8; color: #1d2633; }
-    .-light-mode DataTable > .datatable--header-cursor { background: #1f63c7; color: #ffffff; }
+    .-light-mode Button.-primary { background: $light-cursor-background; color: $light-cursor-foreground; }
+    .-light-mode Button.-primary:hover, .-light-mode Button.-primary:focus {
+        background: $light-button-hover; color: $light-cursor-foreground;
+    }
+    .-light-mode #actions Checkbox > .toggle--button { color: $light-toggle; }
+    /* Table header: Textual paints it with $panel, which may be dark (cin7-light's navy) and swallow the text. */
+    .-light-mode DataTable > .datatable--header {
+        background: $light-header-background; color: $light-header-foreground; text-style: bold;
+    }
+    .-light-mode DataTable > .datatable--header-hover { background: $light-header-hover; color: $light-header-foreground; }
+    .-light-mode DataTable > .datatable--header-cursor {
+        background: $light-cursor-background; color: $light-cursor-foreground;
+    }
     .-light-mode DataTable > .datatable--cursor, .-light-mode DataTable > .datatable--fixed-cursor {
-        background: #1f63c7; color: #ffffff;
+        background: $light-cursor-background; color: $light-cursor-foreground;
     }
-    .-navy-side #left { background: #1c2b41; color: #f3f5f8; }
-    .-navy-side #left Input { background: #2a3d58; color: #f3f5f8; }
-    .-navy-side #left Input > .input--placeholder { color: #bdcadd; }
-    .-navy-side #left Tree { background: #1c2b41; color: #f3f5f8; }
-    .-navy-side #left Tree > .tree--guides { color: #5d7391; }
-    .-navy-side #left Tree > .tree--cursor { background: #2f7ff0; color: #ffffff; text-style: bold; }
-    .-navy-side #left Tree:focus > .tree--cursor { background: #2f7ff0; color: #ffffff; }
-    /* Sidebar scrollbar: thumb at least 3:1 against its track (WCAG non-text). Light: track = the navy panel. */
-    .-navy-side #left, .-navy-side #left Tree {
-        scrollbar-background: #1c2b41; scrollbar-background-hover: #1c2b41; scrollbar-background-active: #1c2b41;
-        scrollbar-color: #97b8e7; scrollbar-color-hover: #b9d0f0; scrollbar-color-active: #dbe7f8;
-        scrollbar-corner-color: #1c2b41;
-    }
+    /* Sidebar scrollbar: thumb at least 3:1 against its track (WCAG non-text). */
     .-dark-mode #left, .-dark-mode #left Tree {
-        scrollbar-color: #4f7fae; scrollbar-color-hover: #6b97c4; scrollbar-color-active: #8fb2d6;
+        scrollbar-color: $sidebar-scrollbar; scrollbar-color-hover: $sidebar-scrollbar-hover;
+        scrollbar-color-active: $sidebar-scrollbar-active;
+    }
+    /* `"sidebar-on-panel": "1"` themes: the sidebar is $panel with the bars' text colour. */
+    .-sidebar-on-panel #left { background: $panel; color: $footer-foreground; }
+    .-sidebar-on-panel #left Input { background: $sidebar-input-background; color: $footer-foreground; }
+    .-sidebar-on-panel #left Input > .input--placeholder { color: $sidebar-placeholder; }
+    .-sidebar-on-panel #left Tree { background: $panel; color: $footer-foreground; }
+    .-sidebar-on-panel #left Tree > .tree--guides { color: $sidebar-guides; }
+    .-sidebar-on-panel #left Tree > .tree--cursor {
+        background: $sidebar-cursor-background; color: $sidebar-cursor-foreground; text-style: bold;
+    }
+    .-sidebar-on-panel #left Tree:focus > .tree--cursor {
+        background: $sidebar-cursor-background; color: $sidebar-cursor-foreground;
+    }
+    .-sidebar-on-panel #left, .-sidebar-on-panel #left Tree {
+        scrollbar-background: $panel; scrollbar-background-hover: $panel; scrollbar-background-active: $panel;
+        scrollbar-color: $sidebar-scrollbar; scrollbar-color-hover: $sidebar-scrollbar-hover;
+        scrollbar-color-active: $sidebar-scrollbar-active;
+        scrollbar-corner-color: $panel;
     }
     #modebar { height: 1; padding: 0 1; text-style: bold; }
     #modebar.idle { background: $success 25%; }
@@ -662,9 +678,18 @@ class Cin7Tui(App):
             relabel_json(tree.root, self.tags)
             tree.refresh()
 
+    def get_css_variables(self) -> dict[str, str]:
+        """Textual's variables for the theme, plus the TUI's own (`theme.derived_variables`)
+        for any the theme does not set in its `variables`."""
+        variables = super().get_css_variables()
+        for name, value in themes_mod.derived_variables(variables).items():
+            variables.setdefault(name, value)
+        self.theme_variables = variables
+        return variables
+
     def _chrome_for_theme(self, t: Theme) -> None:
-        """Navy sidebar for themes that ask for it (the light theme)."""
-        self.set_class(themes_mod.has_navy_side(t), "-navy-side")
+        """Sidebar on $panel for themes that ask for it (cin7-light's navy); tag and row colours."""
+        self.set_class(themes_mod.has_sidebar_on_panel(t), "-sidebar-on-panel")
         self.tags = dict(themes_mod.tags_for(t))
         self.row_colours = dict(themes_mod.row_colours_for(t))
         if self.is_mounted and self.query("#ops"):
@@ -763,10 +788,10 @@ class Cin7Tui(App):
         self._provider_leaves = {}
         self._tree_keys = {}
         by_key: dict[tuple, object] = {}
-        navy = themes_mod.has_navy_side(self.current_theme)
+        on_panel = themes_mod.has_sidebar_on_panel(self.current_theme)
 
         def tint(label: str) -> str:
-            return recolor_for_navy(label) if navy else label
+            return recolor_for_panel(label) if on_panel else label
 
         def keep(node, key: tuple):
             if key not in by_key:  # duplicate ids: the first one keeps the place

@@ -516,6 +516,143 @@ async def test_row_colours_follow_the_theme(mock, tmp_path):
         assert table.get_row_at(4)[1].style.color is None
 
 
+# --- a host app's own themes: the colours come from the theme, not from Cin7's values --
+
+HOST_PANEL = "#2a1010"
+HOST_BAR_TEXT = "#ffe0d0"
+
+HOST_DARK = Theme(
+    name="host-dark",
+    primary="#d04a20",
+    background="#120808",
+    surface="#1a0c0c",
+    panel=HOST_PANEL,
+    foreground="#f0e0d8",
+    dark=True,
+    variables={
+        "sidebar-on-panel": "1",
+        "footer-foreground": HOST_BAR_TEXT,
+        "sidebar-cursor-background": "#7a2a10",
+        "tag-dim": "#c8b8b0",
+        "tag-write": "#ff8800",
+        "tag-internal": "#ff66cc",
+        "row-red": "#ff5555",
+        "row-green": "#55ff88",
+        "row-amber": "#ffcc33",
+    },
+)
+
+HOST_LIGHT = Theme(
+    name="host-light",
+    primary="#aa0055",
+    background="#fbf7f2",
+    surface="#ffffff",
+    panel="#e8ddd0",
+    foreground="#2a2018",
+    dark=False,
+    variables={"light-cursor-background": "#aa0055", "light-header-background": "#f0e4d8"},
+)
+
+
+def _hex(rgb) -> str:
+    return "#" + "".join(f"{v:02x}" for v in rgb)
+
+
+class _PlainRows:
+    title = "Plain rows"
+
+    def nodes(self, filter_text):
+        from cin7_cli.providers import Node
+
+        return [Node(id=str(i), label=f"row {i}") for i in range(3)]
+
+    def run(self, app, node):
+        pass
+
+
+async def test_host_dark_theme_sidebar_uses_its_panel_and_bar_text(tmp_path):
+    from cin7_cli import providers
+
+    app = Cin7Tui(export_dir=tmp_path, themes=[HOST_DARK], providers=[_PlainRows(), providers.OperationsProvider()])
+    async with app.run_test(size=(140, 40)) as pilot:
+        await _settled(app, pilot)
+        assert app.has_class("-sidebar-on-panel")
+        app.query_one("#table").focus()
+        await _settled(app, pilot)
+        panel = app.get_css_variables()["panel"].lower()  # Textual's $panel for the theme
+        assert Color.parse(panel).get_truecolor() != Color.parse("#1c2b41").get_truecolor()
+        runs = _painted(app, app.query_one("#ops").region)
+        rows = [r for r in runs if r[0].startswith("row")]
+        assert rows, runs
+        assert {_hex(bg) for _, _, bg, _ in rows} == {panel}, "the sidebar is the host's $panel"
+        assert {_hex(fg) for _, fg, _, _ in rows} == {HOST_BAR_TEXT}, "plain rows use the host's bar text"
+        assert app.query_one("#left").styles.background.hex.lower() == panel
+        tree = app.query_one("#ops")
+        tree.focus()
+        await _settled(app, pilot)
+        cursor = tree.get_component_rich_style("tree--cursor")
+        assert _hex(_rgb(cursor.bgcolor)) == "#7a2a10", "sidebar cursor from the theme's variable"
+
+
+async def test_host_theme_tags_and_row_colours_come_from_its_variables(mock, tmp_path):
+    app = Cin7Tui(export_dir=tmp_path, themes=[HOST_DARK])
+    async with app.run_test(size=(140, 40)) as pilot:
+        assert app.tags["write"] == "#ff8800" and app.tags["internal"] == "#ff66cc"
+        assert app.tags["number"] == theme.TAGS_DARK["number"], "unset tags fall back"
+        assert app.row_colours == {"red": "#ff5555", "green": "#55ff88", "yellow": "#ffcc33"}
+        table = await _run_sales(app, pilot, mock)
+        assert table.get_row_at(0)[1].style.color.name == "#ff5555"
+        app.select(spec.find("attribute-set", "create"))
+        await _settled(app, pilot)
+        colours = {_hex(fg) for _, fg, _, _ in _painted(app, app.query_one("#op-title").region)}
+        assert "#ff8800" in colours, colours
+
+
+def test_tags_and_rows_fall_back_to_the_defaults():
+    assert theme.tags_for(theme.CIN7_LIGHT) == theme.TAGS_LIGHT
+    assert theme.tags_for(theme.CIN7_DARK) == theme.TAGS_DARK
+    assert theme.row_colours_for(theme.CIN7_LIGHT) == theme.ROW_LIGHT
+    assert theme.row_colours_for(theme.CIN7_DARK) == theme.ROW_DARK
+    t = Theme(name="t", primary="#123456", dark=False, variables={"row-yellow": "#665500", "tag-dim": "#444444"})
+    assert theme.row_colours_for(t) == {**theme.ROW_LIGHT, "yellow": "#665500"}
+    assert theme.tags_for(t) == {**theme.TAGS_LIGHT, "dim": "#444444"}
+
+
+async def test_host_light_theme_cursor_and_header_come_from_its_variables(mock, tmp_path):
+    app = Cin7Tui(export_dir=tmp_path, themes=[HOST_LIGHT])
+    async with app.run_test(size=(140, 40)) as pilot:
+        table = await _run_sales(app, pilot, mock)
+        assert not app.has_class("-sidebar-on-panel")
+        app.query_one("#ops").focus()  # a focused table tints its own background
+        await _settled(app, pilot)
+        cursor = table.get_component_rich_style("datatable--cursor")
+        header = table.get_component_rich_style("datatable--header")
+        assert _hex(_rgb(cursor.bgcolor)) == "#aa0055"
+        assert _hex(_rgb(header.bgcolor)) == "#f0e4d8"
+
+
+async def test_light_theme_without_variables_gets_its_own_colours_not_cin7s(mock, tmp_path):
+    plain = Theme(name="plain-light", primary="#007a3d", background="#ffffff", panel="#3a3a3a",
+                  foreground="#202020", dark=False,
+                  variables={"sidebar-on-panel": "1", "footer-foreground": "#f0f0f0"})
+    app = Cin7Tui(export_dir=tmp_path, themes=[plain])
+    async with app.run_test(size=(140, 40)) as pilot:
+        table = await _run_sales(app, pilot, mock)
+        cursor = _hex(_rgb(table.get_component_rich_style("datatable--cursor").bgcolor))
+        header = _hex(_rgb(table.get_component_rich_style("datatable--header").bgcolor))
+        assert cursor != "#1f63c7" and header != "#dde5f0", (cursor, header)
+        side = {_hex(bg) for _, _, bg, _ in _painted(app, app.query_one("#ops").region)}
+        assert "#1c2b41" not in side and "#3a3a3a" in side, side
+        assert not _low_contrast(_painted(app, app.query_one("#ops").scrollable_content_region))
+
+
+def test_cin7_light_carries_its_colours_as_variables():
+    v = theme.CIN7_LIGHT.variables
+    assert v["sidebar-on-panel"] == "1"
+    assert v["light-cursor-background"] == "#1f63c7" and v["light-header-background"] == "#dde5f0"
+    assert "navy-side" not in v
+
+
 def test_textual_floor_is_the_version_the_suite_runs_on():
     """The tui extra needs Textual 8.2+ (older ones fail to import or render); dev pins below 9."""
     import re
