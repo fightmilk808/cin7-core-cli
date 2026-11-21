@@ -12,8 +12,10 @@ requires-python = ">=3.10"
 dependencies = []
 
 [project.optional-dependencies]
-tui = ["textual>=0.86"]
-dev = ["pytest>=7", "pytest-cov>=4", "pytest-asyncio>=0.23", "textual>=0.86"]
+# Textual 8.2 is the oldest the TUI imports, renders and passes its tests on. The tests read
+# Textual's private compositor to measure contrast, so `dev` stays below the next major.
+tui = ["textual>=8.2"]
+dev = ["pytest>=7", "pytest-cov>=4", "pytest-asyncio>=0.23", "textual>=8.2,<9"]
 
 [project.scripts]
 cin7 = "cin7_cli.cli:main"

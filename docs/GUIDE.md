@@ -12,6 +12,7 @@ cin7 tui
 ![cin7 tui, light theme, listing sales by customer reference (invented data)](tui-light.svg)
 
 A [Textual](https://textual.textualize.io) terminal UI over the same spec, client, pacing and auth as the CLI. `?` lists every key.
+The `tui` extra needs Textual 8.2 or newer.
 
 | | |
 |---|---|
@@ -301,7 +302,7 @@ these hold:
 ## Development
 
 ```bash
-pip install -e '.[dev]'
+pip install -e '.[dev]'                  # Textual >=8.2,<9: the tests read Textual's private compositor
 pytest -q --cov=cin7_cli                 # mock HTTP server only; no live calls
 python scripts/build_spec.py ../cin7-core-rebuild   # regenerate src/cin7_cli/spec.json from the API map
 ```

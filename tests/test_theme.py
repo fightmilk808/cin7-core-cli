@@ -514,3 +514,15 @@ async def test_row_colours_follow_the_theme(mock, tmp_path):
         assert table.get_row_at(0)[1].style.color.name == "#a01e14"
         assert table.get_row_at(1)[1].style.color.name == "#185a2b"
         assert table.get_row_at(4)[1].style.color is None
+
+
+def test_textual_floor_is_the_version_the_suite_runs_on():
+    """The tui extra needs Textual 8.2+ (older ones fail to import or render); dev pins below 9."""
+    import re
+    from pathlib import Path
+
+    text = (Path(__file__).parent.parent / "pyproject.toml").read_text(encoding="utf-8")
+    tui = re.search(r"^tui = \[(.*)\]$", text, re.M).group(1)
+    dev = re.search(r"^dev = \[(.*)\]$", text, re.M).group(1)
+    assert '"textual>=8.2"' in tui, tui
+    assert '"textual>=8.2,<9"' in dev, dev
