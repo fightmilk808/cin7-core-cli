@@ -35,14 +35,16 @@ QUIT_KEYS = ("ctrl+q", "ctrl+c")  # never swallowed by the splash
 Effect = Literal["fade", "none"] | Callable[["SplashScreen"], Awaitable[None]]
 
 
-@dataclass
+@dataclass(frozen=True)
 class Splash:
-    """What the boot splash shows and how long it stays.
+    """What the boot splash shows and how long it stays. Frozen: use `dataclasses.replace`.
 
     `effect` is "fade", "none", or an async callable taking the `SplashScreen`. A callable
     drives its own frames (via `SplashScreen.draw`); the splash ends when it returns, or
-    after `seconds` at the latest. `status_provider` is awaited once; its text goes on the
-    status line, "?" if it raises, nothing if it is still running when the splash ends.
+    after `seconds` at the latest. If it raises, the error is logged (Textual's log, and the
+    app's Log tab when the app has one) and the splash ends. `status_provider` is awaited
+    once; its text goes on the status line, "?" if it raises, nothing if it is still running
+    when the splash ends.
     """
 
     art: str
@@ -210,11 +212,28 @@ class SplashScreen(Screen[None]):
             yield Static("", id="splash-status", classes="-empty")
 
     def draw(self, art: str | Text) -> None:
-        """Replace the art. A custom `effect` calls this once per frame."""
+        """Replace the art. A custom `effect` calls this once per frame.
+
+        A `str` gets the gradient; a `Text` is drawn with its own styles. Either way lines
+        longer than the terminal are cropped, never wrapped."""
         if self._done:
             return
         self._art = art
-        self.query_one("#splash-art", Static).update(self._styled(art) if isinstance(art, str) else art)
+        if isinstance(art, str):
+            shown = self._styled(art)
+        else:
+            shown = self._crop_text(art)
+        self.query_one("#splash-art", Static).update(shown)
+
+    def _crop_text(self, art: Text) -> Text:
+        """A copy of `art` with every line cut to the terminal width (Textual would wrap it)."""
+        lines = art.split("\n", allow_blank=True)
+        for line in lines:
+            line.truncate(self._width(), overflow="crop")
+            line.rstrip()
+        out = Text("\n", no_wrap=True, overflow="crop", end="").join(lines)
+        out.no_wrap, out.overflow = True, "crop"
+        return out
 
     def set_status(self, text: str) -> None:
         """Set the line under the tagline ("" hides it)."""
@@ -243,9 +262,24 @@ class SplashScreen(Screen[None]):
     async def _drive(self, effect: Callable[[SplashScreen], Awaitable[None]]) -> None:
         try:
             await asyncio.wait_for(effect(self), timeout=self.splash.seconds)
-        except Exception:  # noqa: BLE001 - a broken effect (or the timeout) must not trap the user here
-            pass
+        except asyncio.TimeoutError:
+            pass  # the effect ran its full time: that is how a long effect ends
+        except Exception as e:  # noqa: BLE001 - a broken effect must not trap the user here
+            self._log_effect_error(e)
         self._finish()
+
+    def _log_effect_error(self, error: Exception) -> None:
+        """Say why the effect stopped: in Textual's log, and on the app's Log tab if it has one."""
+        message = f"splash effect failed: {type(error).__name__}: {error}"
+        self.log.error(message)
+        log_line = getattr(self.app, "log_line", None)
+        if callable(log_line):
+            try:
+                from rich.markup import escape
+
+                log_line(f"[red]{escape(message)}[/]")
+            except Exception:  # noqa: BLE001 - logging must never keep the splash up
+                pass
 
     async def _status(self, provider: Callable[[], Awaitable[str]]) -> None:
         try:

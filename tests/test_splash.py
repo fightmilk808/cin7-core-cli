@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import time
 from pathlib import Path
 
@@ -64,12 +65,27 @@ def test_art_file_is_the_wordmark_and_is_packaged():
 
 
 async def test_splash_shows_then_tree(tmp_path):
-    app = _app(tmp_path, splash.CIN7_SPLASH)
+    # A long copy of the default splash, so a slow machine cannot finish it before the first check.
+    app = _app(tmp_path, dataclasses.replace(splash.CIN7_SPLASH, seconds=30))
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         assert _on_splash(app)
+        await pilot.press("space")
         await _until(pilot, lambda: not _on_splash(app))
         assert app.focused is app.query_one("#ops", Tree)
+
+
+async def test_default_splash_goes_away_on_its_own(tmp_path):
+    app = _app(tmp_path, splash.CIN7_SPLASH)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _until(pilot, lambda: not _on_splash(app))
+        assert app.focused is app.query_one("#ops", Tree)
+
+
+def test_splash_is_frozen():
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        splash.CIN7_SPLASH.seconds = 5  # type: ignore[misc]
+    assert dataclasses.replace(splash.CIN7_SPLASH, seconds=5).seconds == 5
 
 
 async def test_any_key_skips_and_is_consumed(tmp_path):
@@ -266,6 +282,41 @@ async def test_custom_effect_that_raises_still_dismisses(tmp_path):
     app = _app(tmp_path, _long(effect=effect, seconds=5))
     async with app.run_test(size=(80, 24)) as pilot:
         await _until(pilot, lambda: not _on_splash(app), timeout=4.0)  # not the 5 s ceiling
+
+
+async def test_custom_effect_error_is_logged(tmp_path):
+    async def effect(screen: SplashScreen) -> None:
+        raise RuntimeError("effect went boom")
+
+    app = _app(tmp_path, _long(effect=effect, seconds=5))
+    seen: list[str] = []
+    app.log_line = seen.append  # the Log tab is not on screen, so read what is sent to it
+    async with app.run_test(size=(80, 24)) as pilot:
+        await _until(pilot, lambda: not _on_splash(app), timeout=4.0)
+        logged = "\n".join(seen)
+        assert "effect went boom" in logged and "RuntimeError" in logged, logged
+
+
+async def test_draw_crops_a_text_instead_of_wrapping_it(tmp_path):
+    from rich.text import Text
+
+    gate = asyncio.Event()
+
+    async def effect(screen: SplashScreen) -> None:
+        screen.draw(Text("W" * 200 + "\nsecond"))
+        await gate.wait()
+
+    app = _app(tmp_path, _long(effect=effect, seconds=30))
+    async with app.run_test(size=(30, 10)) as pilot:
+        def drawn() -> bool:
+            return any("W" in s.text for s in app.screen._compositor.render_strips())
+
+        await _until(pilot, drawn)
+        await pilot.pause()
+        rows = [strip.text.rstrip() for strip in app.screen._compositor.render_strips()]
+        assert sum(1 for r in rows if "W" in r) == 1, rows  # one cropped line, no wrapped spill-over
+        assert any("second" in r for r in rows), rows
+        gate.set()
 
 
 async def test_key_skips_a_custom_effect_and_stops_it(tmp_path):
