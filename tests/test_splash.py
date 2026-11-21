@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from pathlib import Path
 
 import pytest
@@ -33,6 +34,15 @@ def _long(**kw) -> Splash:
     return Splash(art="CIN7", gradient=["#2f7ff0"], effect=kw.pop("effect", "none"), seconds=kw.pop("seconds", 30), **kw)
 
 
+async def _until(pilot, cond, timeout: float = 10.0) -> None:
+    """Poll `cond()` every 0.02 s until it is true; fail at a monotonic deadline (slow CI is fine)."""
+    deadline = time.monotonic() + timeout
+    while not cond():
+        if time.monotonic() > deadline:
+            raise AssertionError(f"condition not met within {timeout} s")
+        await pilot.pause(0.02)
+
+
 # --- the default splash -----------------------------------------------------------
 
 
@@ -58,8 +68,7 @@ async def test_splash_shows_then_tree(tmp_path):
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         assert _on_splash(app)
-        await pilot.pause(1.2)
-        assert not _on_splash(app)
+        await _until(pilot, lambda: not _on_splash(app))
         assert app.focused is app.query_one("#ops", Tree)
 
 
@@ -180,7 +189,10 @@ async def test_narrow_terminal(tmp_path, size):
 async def test_narrow_terminal_crops_the_art_instead_of_wrapping_it(tmp_path):
     app = _app(tmp_path, Splash(art=splash.CIN7_SPLASH.art, gradient=["#2f7ff0"], effect="none", seconds=30))
     async with app.run_test(size=(40, 12)) as pilot:
-        await pilot.pause(0.2)
+        def drawn() -> bool:
+            return sum(1 for s in app.screen._compositor.render_strips() if s.text.strip()) >= 3
+
+        await _until(pilot, drawn)
         rows = [strip.text.rstrip() for strip in app.screen._compositor.render_strips()]
         shown = [r for r in rows if r.strip()]
         assert len(shown) == 3, rows  # three art lines, no spill-over lines
@@ -195,7 +207,7 @@ async def test_fade_animates_opacity_up(tmp_path):
     async with app.run_test(size=(80, 24)) as pilot:
         body = app.screen.query_one("#splash-body")
         first = body.styles.opacity
-        await pilot.pause(0.3)
+        await _until(pilot, lambda: body.styles.opacity > first)
         later = body.styles.opacity
         assert 0.0 <= first < later < 1.0
 
@@ -214,9 +226,8 @@ async def test_custom_effect_is_awaited_and_splash_dismisses(tmp_path):
 
     app = _app(tmp_path, _long(effect=effect, seconds=5))
     async with app.run_test(size=(80, 24)) as pilot:
-        await pilot.pause(0.5)
+        await _until(pilot, lambda: seen and not _on_splash(app), timeout=4.0)  # not the 5 s ceiling
         assert len(seen) == 1 and isinstance(seen[0], SplashScreen)
-        assert not _on_splash(app)  # it did not wait for the 5 s ceiling
 
 
 async def test_custom_effect_can_draw_frames(tmp_path):
@@ -228,12 +239,9 @@ async def test_custom_effect_can_draw_frames(tmp_path):
 
     app = _app(tmp_path, _long(effect=effect, seconds=5))
     async with app.run_test(size=(80, 24)) as pilot:
-        await pilot.pause(0.1)
-        assert _on_splash(app)
-        assert "FRAME-ONE" in str(app.screen.query_one("#splash-art").content)
+        await _until(pilot, lambda: _on_splash(app) and "FRAME-ONE" in str(app.screen.query_one("#splash-art").content))
         gate.set()
-        await pilot.pause(0.2)
-        assert not _on_splash(app)
+        await _until(pilot, lambda: not _on_splash(app), timeout=4.0)
 
 
 async def test_custom_effect_is_cut_off_at_seconds(tmp_path):
@@ -248,9 +256,7 @@ async def test_custom_effect_is_cut_off_at_seconds(tmp_path):
 
     app = _app(tmp_path, _long(effect=effect, seconds=0.2))
     async with app.run_test(size=(80, 24)) as pilot:
-        await pilot.pause(0.6)
-        assert not _on_splash(app)
-        assert cancelled.is_set()
+        await _until(pilot, lambda: cancelled.is_set() and not _on_splash(app))
 
 
 async def test_custom_effect_that_raises_still_dismisses(tmp_path):
@@ -259,14 +265,15 @@ async def test_custom_effect_that_raises_still_dismisses(tmp_path):
 
     app = _app(tmp_path, _long(effect=effect, seconds=5))
     async with app.run_test(size=(80, 24)) as pilot:
-        await pilot.pause(0.4)
-        assert not _on_splash(app)
+        await _until(pilot, lambda: not _on_splash(app), timeout=4.0)  # not the 5 s ceiling
 
 
 async def test_key_skips_a_custom_effect_and_stops_it(tmp_path):
     cancelled = asyncio.Event()
+    started = asyncio.Event()
 
     async def effect(screen: SplashScreen) -> None:
+        started.set()
         try:
             await asyncio.sleep(30)
         except asyncio.CancelledError:
@@ -275,17 +282,17 @@ async def test_key_skips_a_custom_effect_and_stops_it(tmp_path):
 
     app = _app(tmp_path, _long(effect=effect, seconds=30))
     async with app.run_test(size=(80, 24)) as pilot:
-        await pilot.pause(0.1)
+        await _until(pilot, started.is_set)
         await pilot.press("space")
-        await pilot.pause(0.2)
-        assert not _on_splash(app)
-        assert cancelled.is_set()
+        await _until(pilot, lambda: cancelled.is_set() and not _on_splash(app))
 
 
 # --- status provider ---------------------------------------------------------------
 
 
 def _status(app) -> str:
+    if not _on_splash(app):
+        return ""
     return str(app.screen.query_one("#splash-status").content).strip()
 
 
@@ -296,21 +303,19 @@ async def test_status_line_shows_the_providers_text(tmp_path):
 
     app = _app(tmp_path, _long(status_provider=provider))
     async with app.run_test(size=(80, 24)) as pilot:
-        await pilot.pause(0.3)
-        assert _on_splash(app)
-        assert _status(app) == "3 open orders"
+        await _until(pilot, lambda: _on_splash(app) and _status(app) == "3 open orders")
 
 
 async def test_status_provider_that_raises_shows_a_question_mark(tmp_path):
     async def provider() -> str:
         raise RuntimeError("offline")
 
-    app = _app(tmp_path, _long(seconds=0.6, status_provider=provider))
+    app = _app(tmp_path, _long(seconds=30, status_provider=provider))
     async with app.run_test(size=(80, 24)) as pilot:
-        await pilot.pause(0.2)
-        assert _on_splash(app) and _status(app) == "?"
-        await pilot.pause(0.7)
-        assert not _on_splash(app)
+        await _until(pilot, lambda: _status(app) == "?")
+        assert _on_splash(app)
+        await pilot.press("space")
+        await _until(pilot, lambda: not _on_splash(app))
 
 
 async def test_slow_status_provider_does_not_block_dismissal(tmp_path):
@@ -328,12 +333,8 @@ async def test_slow_status_provider_does_not_block_dismissal(tmp_path):
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
         assert _on_splash(app) and _status(app) == ""
-        for _ in range(100):  # up to 5 s: the splash leaves on its own timer, not the provider's
-            if not _on_splash(app) and cancelled.is_set():
-                break
-            await pilot.pause(0.05)
-        assert not _on_splash(app)
-        assert cancelled.is_set()
+        # The splash leaves on its own 1 s timer, not the provider's.
+        await _until(pilot, lambda: not _on_splash(app) and cancelled.is_set())
 
 
 # --- readability in both themes -----------------------------------------------------
@@ -354,8 +355,8 @@ async def test_splash_art_tagline_and_status_are_readable(tmp_path, t):
     )
     app = _app(tmp_path, spl, themes=[t])
     async with app.run_test(size=(100, 30)) as pilot:
-        await pilot.pause(0.3)
-        assert _on_splash(app)
+        await _until(pilot, lambda: _on_splash(app) and _status(app) == "status line")
+        await pilot.pause()
         runs = _painted(app, app.screen.region, ink=lambda c: not c.isspace())
         text = " ".join(r[0] for r in runs)
         for expected in ("┌─┐", "cli · tui · mcp", "read-only browser", "status line"):

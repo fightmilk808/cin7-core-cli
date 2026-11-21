@@ -454,21 +454,63 @@ async def test_sidebar_scrollbar_thumb_is_visible(tmp_path, size):
             await _settled(app, pilot)
 
 
-async def test_light_theme_table_header_is_readable(mock, tmp_path):
-    from textual.widgets import DataTable
+STATUS_ROWS = [
+    {"SaleID": "a", "CustomerReference": "#10001", "Status": "BACKORDERED", "Customer": "Example A", "Amount": 10},
+    {"SaleID": "b", "CustomerReference": "#10002", "Status": "SHIPPED", "Customer": "Example B", "Amount": 20},
+    {"SaleID": "c", "CustomerReference": "#10003", "Status": "ORDERED", "Customer": "Example C", "Amount": 30},
+    {"SaleID": "d", "CustomerReference": "#10004", "Status": "IN PROGRESS", "Customer": "Example D", "Amount": 40},
+    {"SaleID": "e", "CustomerReference": "#10005", "Status": "NOTHING", "Customer": "Example E", "Amount": 50},
+]
 
-    rows = [{"SaleID": "a", "CustomerReference": "#10001", "Status": "SHIPPED", "Customer": "Example"}]
-    mock.routes[("GET", "/saleList")] = (200, {"Total": 1, "Page": 1, "SaleList": rows}, {})
+
+async def _run_sales(app, pilot, mock):
+    mock.routes[("GET", "/saleList")] = (200, {"Total": 5, "Page": 1, "SaleList": STATUS_ROWS}, {})
+    await _settled(app, pilot)
+    app.select(spec.find("sale", "list"))
+    await _settled(app, pilot)
+    app.action_run()
+    await _settled(app, pilot)
+    return app.query_one("#table")
+
+
+async def test_light_theme_table_is_readable(mock, tmp_path):
+    """Header, every status colour, locked columns and the cursor cell all read on the light theme."""
     app = Cin7Tui(export_dir=tmp_path, themes=[theme.CIN7_LIGHT])
     async with app.run_test(size=(140, 40)) as pilot:
-        await _settled(app, pilot)
-        app.select(spec.find("sale", "list"))
-        await _settled(app, pilot)
-        app.action_run()
-        await _settled(app, pilot)
-        table = app.query_one("#table", DataTable)
-        assert table.row_count == 1
+        table = await _run_sales(app, pilot, mock)
+        assert table.row_count == 5 and table.fixed_columns >= 1
         region = table.region
-        header = _painted(app, region.__class__(region.x, region.y, region.width, 1))  # the header line
+        header = _painted(app, region.__class__(region.x, region.y, region.width, 1))
         assert any(text == "CustomerReference" for text, *_ in header), "header text was not painted"
         assert not _low_contrast(header), "table header"
+        seen = set()
+        for row in range(5):  # the cursor visits each row: plain cells, locked cells and the cursor cell
+            table.cursor_coordinate = (row, 0)
+            await pilot.pause()
+            body = _painted(app, region.__class__(region.x, region.y + 1, region.width, region.height - 1))
+            assert body, "nothing painted in the body"
+            assert not _low_contrast(body), f"table body, cursor on row {row}"
+            seen |= {tuple(fg) for _, fg, _, _ in body}
+        for colour in theme.ROW_LIGHT.values():
+            assert tuple(int(colour[i:i + 2], 16) for i in (1, 3, 5)) in seen, f"{colour} never painted"
+        for name in ("datatable--header-hover", "datatable--header-cursor", "datatable--cursor"):
+            style = table.get_component_rich_style(name)
+            fg, bg = _rgb(style.color), _rgb(style.bgcolor)
+            assert _contrast(fg, bg) >= 4.5, f"{name} {fg} on {bg}"
+
+
+async def test_row_colours_follow_the_theme(mock, tmp_path):
+    """Dark keeps the ANSI names; ctrl+t redraws the rows in the other theme's colours."""
+    app = Cin7Tui(export_dir=tmp_path, themes=[theme.CIN7_DARK, theme.CIN7_LIGHT])
+    async with app.run_test(size=(140, 40)) as pilot:
+        table = await _run_sales(app, pilot, mock)
+        assert app.row_colours == theme.ROW_DARK
+        assert table.get_row_at(0)[1].style.color.name == "red"
+        table.cursor_coordinate = (2, 1)
+        await pilot.press("ctrl+t")
+        await _settled(app, pilot)
+        assert app.theme == "cin7-light" and app.row_colours == theme.ROW_LIGHT
+        assert table.row_count == 5 and table.cursor_coordinate == (2, 1)
+        assert table.get_row_at(0)[1].style.color.name == "#a01e14"
+        assert table.get_row_at(1)[1].style.color.name == "#185a2b"
+        assert table.get_row_at(4)[1].style.color is None
