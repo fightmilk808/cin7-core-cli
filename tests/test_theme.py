@@ -87,6 +87,33 @@ def test_sidebar_defaults_to_30(tmp_path, monkeypatch):
     assert app.sidebar_width == 30
 
 
+async def test_sidebar_width_argument_sets_the_default(tmp_path, monkeypatch):
+    monkeypatch.setattr("cin7_cli.tui.load_ui_state", lambda: {})
+    app = Cin7Tui(export_dir=tmp_path, sidebar_width=32)
+    assert app.sidebar_width == 32
+    async with app.run_test(size=(140, 40)) as pilot:
+        await pilot.pause()
+        assert app.query_one("#left").outer_size.width == 32
+
+
+def test_saved_sidebar_width_beats_the_argument(tmp_path, monkeypatch):
+    monkeypatch.setattr("cin7_cli.tui.load_ui_state", lambda: {"sidebar_width": 50})
+    assert Cin7Tui(export_dir=tmp_path, sidebar_width=32).sidebar_width == 50
+    assert Cin7Tui(export_dir=tmp_path, sidebar_width=None).sidebar_width == 50
+
+
+def test_new_arguments_are_keyword_only(tmp_path):
+    import inspect
+
+    params = inspect.signature(Cin7Tui.__init__).parameters
+    assert [n for n, p in params.items() if p.kind is p.POSITIONAL_OR_KEYWORD] == ["self", "rate", "export_dir"]
+    assert {n for n, p in params.items() if p.kind is p.KEYWORD_ONLY} == {
+        "themes", "splash", "show_splash", "providers", "sidebar_width"}
+    assert Cin7Tui(40, tmp_path).export_dir == tmp_path  # the two original positionals still work
+    with pytest.raises(TypeError):
+        Cin7Tui(40, tmp_path, [theme.CIN7_DARK])  # type: ignore[misc]
+
+
 # --- readability: contrast measured on what is actually painted -------------------
 
 

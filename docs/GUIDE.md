@@ -109,6 +109,10 @@ class Watchlist:
 Cin7Tui(providers=[Watchlist(), OperationsProvider()]).run()
 ```
 
+`Cin7Tui(rate, export_dir, *, themes, splash, show_splash, providers, sidebar_width)`: only `rate` and `export_dir`
+may be passed by position. `sidebar_width=32` sets the sidebar's starting width for a fresh install; a width saved
+in `ui.json` (after `[` / `]`, or any remembered setting) still wins.
+
 A `Node` has `id`, `label`, `icon`, `heat` (0-100, drawn as a bar before the row), `children` (a branch if any),
 `expanded`, `data`, `style` and `markup`. The provider's `title`, a node's `label` and its `icon` are plain text:
 brackets show as typed and are never read as markup. `style` (a Rich style such as `"bold cyan"`) colours the whole

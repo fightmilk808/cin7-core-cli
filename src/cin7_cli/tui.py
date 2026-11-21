@@ -522,17 +522,29 @@ class Cin7Tui(App):
         self,
         rate: float = DEFAULT_PER_MIN,
         export_dir: Path | None = None,
+        *,
         themes: Sequence[Theme] | None = None,
         splash: splash_mod.Splash | None = splash_mod.CIN7_SPLASH,
         show_splash: bool | None = None,
         providers: Sequence[providers_mod.CollectionProvider] | None = None,
+        sidebar_width: int | None = None,
     ):
-        """`splash` is what the boot splash shows (None: none). `show_splash` None follows
+        """`rate` and `export_dir` may be positional; everything after them is keyword-only.
+
+        `themes` are the colour themes (see `cin7_cli.theme`); the first is active at start,
+        `ctrl+t` cycles them. None means cin7-light then cin7-dark.
+
+        `splash` is what the boot splash shows (None: none). `show_splash` None follows
         `CIN7_TUI_SPLASH` (on unless "0"); True or False overrides it.
 
         `providers` are the sidebar's top-level sections, in order (see `cin7_cli.providers`);
         None means Quick views then All operations. Pinned and recent operations always
-        come first."""
+        come first.
+
+        `sidebar_width` is the sidebar's starting width in columns. None keeps the built-in
+        default (30). Either way a width saved in ui.json (the user pressed `[` or `]`, or
+        any other remembered setting was saved) wins, so this only sets the width of a fresh
+        install."""
         super().__init__()
         self.providers: list[providers_mod.CollectionProvider] = (
             providers_mod.default_providers() if providers is None else list(providers)
@@ -566,7 +578,7 @@ class Cin7Tui(App):
         self.clients: dict = {}
         self.running = False
         ui = load_ui_state()
-        self.sidebar_width = int(ui.get("sidebar_width", 30))
+        self.sidebar_width = int(ui.get("sidebar_width", 30 if sidebar_width is None else sidebar_width))
         self.compact = bool(ui.get("compact", False))
         self.show_writes = bool(ui.get("show_writes", False))
         self.pins: list[str] = list(ui.get("pins", []))
