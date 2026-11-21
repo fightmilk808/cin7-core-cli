@@ -96,6 +96,12 @@ def _isolated(monkeypatch, tmp_path):
     monkeypatch.setattr(ratelimit.RateLimiter, "__init__", fast_init)
 
 
+@pytest.fixture(autouse=True)
+def _no_splash(monkeypatch):
+    """The boot splash is off for every test; splash tests ask for it with show_splash=True."""
+    monkeypatch.setenv("CIN7_TUI_SPLASH", "0")
+
+
 @pytest.fixture
 def mock(monkeypatch):
     m = MockCin7()

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cin7-core-cli"
-version = "0.1.0"
+version = "0.2.0"
 description = "Read-only-by-default command line for the Cin7 Core (DEAR Inventory) public API v2"
 readme = "README.md"
 license = { text = "MIT" }
@@ -12,8 +12,10 @@ requires-python = ">=3.10"
 dependencies = []
 
 [project.optional-dependencies]
-tui = ["textual>=0.80"]
-dev = ["pytest>=7", "pytest-cov>=4", "pytest-asyncio>=0.23", "textual>=0.80"]
+# Textual 8.2 is the oldest the TUI imports, renders and passes its tests on. The tests read
+# Textual's private compositor to measure contrast, so `dev` stays below the next major.
+tui = ["textual>=8.2"]
+dev = ["pytest>=7", "pytest-cov>=4", "pytest-asyncio>=0.23", "textual>=8.2,<9"]
 
 [project.scripts]
 cin7 = "cin7_cli.cli:main"
@@ -23,7 +25,7 @@ cin7-mcp = "cin7_cli.mcp:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-cin7_cli = ["spec.json"]
+cin7_cli = ["spec.json", "art/*.txt"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

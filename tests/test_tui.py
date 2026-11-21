@@ -25,8 +25,13 @@ def _param(app, flag: str) -> Input:
     return app.query_one(f"#p-{flag}", ParamInput)
 
 
+def _all_ops(tree):
+    """The "All operations" section's head; MAIN, PUBLIC API, INTERNAL, ... are its children."""
+    return next(h for h in tree.root.children if "All operations" in str(h.label))
+
+
 def _groups(tree):
-    return [(h, g) for h in tree.root.children for g in h.children if isinstance(g.data, tuple) and g.data[0] == "group"]
+    return [(h, g) for h in _all_ops(tree).children for g in h.children if isinstance(g.data, tuple) and g.data[0] == "group"]
 
 
 async def test_tree_sections_and_main_groups_first(tmp_path):
@@ -36,15 +41,18 @@ async def test_tree_sections_and_main_groups_first(tmp_path):
         tree = app.query_one("#ops", Tree)
         app._fill_tree("")
         await pilot.pause()
-        heads = [str(h.label) for h in tree.root.children]
+        tops = [str(h.label) for h in tree.root.children]
+        assert "Quick views" in tops[0] and "All operations" in tops[1]
+        assert _all_ops(tree).is_expanded
+        heads = [str(h.label) for h in _all_ops(tree).children]
         assert "MAIN" in heads[0] and "PUBLIC API" in heads[1] and "INTERNAL" in heads[2]
         assert "PRINT" in heads[3] and "REFERENCE" in heads[4]
-        main = [g.data[1] for g in tree.root.children[0].children]
+        main = [g.data[1] for g in _all_ops(tree).children[0].children]
         assert main == ["product", "sale", "stock", "production", "purchase"]
         groups = _groups(tree)
         assert len(groups) == len(spec.groups())
         assert sum(len(g.children) for _, g in groups) == len(spec.operations())
-        assert len(tree.root.children[3].children) == len(printing.endpoints())
+        assert len(_all_ops(tree).children[3].children) == len(printing.endpoints())
         app.query_one("#filter", Input).value = "saleList"
         await pilot.pause()
         assert [g.data[1] for _, g in _groups(tree)][0] == "sale"
@@ -80,16 +88,16 @@ async def test_internal_write_is_never_sent(mock, monkeypatch, tmp_path):
 
 
 async def test_run_list_fills_table_and_exports(mock, tmp_path):
-    rows = [{"SaleID": "a", "CustomerReference": "#25147", "Lines": [1]}, {"SaleID": "b", "CustomerReference": "#25148"}]
+    rows = [{"SaleID": "a", "CustomerReference": "#10001", "Lines": [1]}, {"SaleID": "b", "CustomerReference": "#10002"}]
     mock.routes[("GET", "/saleList")] = (200, {"Total": 2, "Page": 1, "SaleList": rows}, {})
     app = Cin7Tui(export_dir=tmp_path)
     async with app.run_test(size=(140, 45)) as pilot:
         app.select(spec.find("sale", "list"))
         await pilot.pause()
-        _param(app, "search").value = "#25147"
+        _param(app, "search").value = "#10001"
         await pilot.press("ctrl+r")
         await _settle(app, pilot)
-        assert mock.requests[0]["query"] == {"Search": "#25147"}
+        assert mock.requests[0]["query"] == {"Search": "#10001"}
         assert mock.requests[0]["headers"]["api-auth-applicationkey"] == KEY
         table = app.query_one("#table", DataTable)
         assert table.row_count == 2
@@ -97,7 +105,7 @@ async def test_run_list_fills_table_and_exports(mock, tmp_path):
         await pilot.press("ctrl+e")
         await pilot.pause()
         files = list(tmp_path.glob("cin7-sale-list-*.csv"))
-        assert len(files) == 1 and "#25147" in files[0].read_text()
+        assert len(files) == 1 and "#10001" in files[0].read_text()
 
 
 async def test_all_pages(mock, tmp_path):
@@ -173,7 +181,7 @@ async def test_row_select_shows_record(mock, tmp_path):
 
 
 def _ops_in_tree(tree):
-    return [n.data for h in tree.root.children for g in h.children for n in g.children]
+    return [n.data for h in _all_ops(tree).children for g in h.children for n in g.children]
 
 
 async def test_writes_hidden_by_default_and_toggle(tmp_path):
@@ -183,7 +191,7 @@ async def test_writes_hidden_by_default_and_toggle(tmp_path):
         assert not app.show_writes
         shown = _ops_in_tree(tree)
         assert shown and all(first_ok(o) for o in shown)
-        assert not any("Reference" in str(h.label) for h in tree.root.children)
+        assert not any("REFERENCE" in str(h.label) for h in _all_ops(tree).children)
         await pilot.press("m")
         await pilot.pause()
         everything = _ops_in_tree(tree)
@@ -346,7 +354,7 @@ async def test_sidebar_toggle_resize_compact_and_persist(tmp_path):
         await pilot.press("right_square_bracket")
         assert app.sidebar_width == w + 4
         await pilot.press("c")
-        assert app.compact and "[dim]" not in str(app.query_one("#ops", Tree).root.children[0].children[0].label).split("]")[-1:][0]
+        assert app.compact and "[dim]" not in str(_all_ops(app.query_one("#ops", Tree)).children[0].children[0].label).split("]")[-1:][0]
     again = Cin7Tui(export_dir=tmp_path)
     assert again.sidebar_width == w + 4 and again.compact
 
@@ -415,13 +423,13 @@ async def test_saved_filters_round_trip(mock, tmp_path):
     async with app.run_test(size=(160, 50)) as pilot:
         app.select(spec.find("sale", "list"))
         await pilot.pause()
-        _param(app, "search").value = "#25147"
+        _param(app, "search").value = "#10001"
         await pilot.press("ctrl+s")
         await pilot.pause()
         app.screen.query_one("#name").value = "this week"
         await pilot.press("enter")
         await pilot.pause()
-        assert app.saved["this week"] == {"op": "sale list", "params": {"Search": "#25147"}, "all_pages": False}
+        assert app.saved["this week"] == {"op": "sale list", "params": {"Search": "#10001"}, "all_pages": False}
         _param(app, "search").value = ""
         await pilot.press("ctrl+o")
         await pilot.pause()
@@ -429,7 +437,7 @@ async def test_saved_filters_round_trip(mock, tmp_path):
         await pilot.pause()
         await _settle(app, pilot)
         await pilot.pause()
-        assert mock.requests[-1]["query"] == {"Search": "#25147"}
+        assert mock.requests[-1]["query"] == {"Search": "#10001"}
         await pilot.press("ctrl+o")
         await pilot.pause()
         await pilot.press("delete")
@@ -619,7 +627,7 @@ async def test_text_in_an_id_field_is_looked_up(mock, tmp_path):
     from cin7_cli.tui import PickScreen
 
     sid = "11111111-2222-3333-4444-555555555555"
-    one = [{"SaleID": sid, "CustomerReference": "#25147", "Customer": "Acme"}]
+    one = [{"SaleID": sid, "CustomerReference": "#10001", "Customer": "Acme"}]
     mock.routes[("GET", "/saleList")] = [(200, {"Total": 1, "Page": 1, "SaleList": one}, {})]
     mock.routes[("GET", "/sale")] = (200, {"ID": sid, "Customer": "Acme"}, {})
     app = Cin7Tui(export_dir=tmp_path)
@@ -627,7 +635,7 @@ async def test_text_in_an_id_field_is_looked_up(mock, tmp_path):
         app.select(spec.find("sale", "get"))
         await pilot.pause()
         assert "ref, SO-" in _param(app, "id").placeholder
-        _param(app, "id").value = "#25147"
+        _param(app, "id").value = "#10001"
         app.action_run()
         await app.workers.wait_for_complete()
         await pilot.pause()

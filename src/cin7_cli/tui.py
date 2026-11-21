@@ -16,6 +16,7 @@ import subprocess
 import time
 import webbrowser
 from collections import Counter
+from collections.abc import Sequence
 from pathlib import Path
 
 from rich.markup import escape as rich_escape
@@ -26,6 +27,7 @@ from textual.app import App, ComposeResult
 from textual.screen import ModalScreen
 from textual.binding import Binding
 from textual.markup import escape
+from textual.theme import Theme
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import (
     Button,
@@ -49,42 +51,26 @@ from textual.widgets import (
 from . import auth, output, paging, printing, ratelimit, resolve, rowtools, runner, spec
 from .cli import TYPE_HINT, TYPES
 from .client import ApiError, base_url
+from . import providers as providers_mod
+from . import splash as splash_mod
+from .providers import (  # noqa: F401  (re-exported: older imports use cin7_cli.tui)
+    MAIN_GROUPS,
+    MAIN_TITLES,
+    MAIN_WEB,
+    QUICK_VIEWS,
+    first_ok,
+    is_list,
+    leaf_label,
+    op_by_name,
+)
+from . import theme as themes_mod
 from .safety import PRINT_NOTE
 from .ratelimit import DEFAULT_PER_MIN
 
 MAX_TABLE_ROWS = 5000
 
-# Public groups pinned to the top, in this order, and the names they go by.
-MAIN_GROUPS = ["product", "sale", "stock", "production", "purchase"]
-MAIN_TITLES = {
-    "product": "Products",
-    "sale": "Sales",
-    "stock": "Transfers · Stock",
-    "production": "Production",
-    "purchase": "Purchases",
-}
-MAIN_WEB = {"inventory", "sale", "production", "purchase", "mrp"}
-
-
-# One-key read-only views: (key, label, op group, op name, query params, after-run tweaks).
-# Status values come from the Blueprint's value lists; check them against your data.
-QUICK_VIEWS = (
-    ("1", "Open production orders", "production", "order-list", {"Limit": "100"}, {"hide_done": True, "sort": "RequiredByDate"}),
-    ("2", "Sales waiting on stock", "sale", "list",
-     {"Limit": "100", "OrderStatus": "AUTHORISED", "CombinedPickStatus": "NOT AVAILABLE"}, {}),
-    ("3", "Latest MRP run (internal)", "web-mrp", "mrp-v-mrp", {"limit": "25", "page": "1", "start": "0"},
-     {"sort": "date", "desc": True}),
-    ("4", "Sales awaiting shipment", "sale", "list",
-     {"Limit": "100", "OrderStatus": "AUTHORISED", "CombinedShippingStatus": "NOT SHIPPED"}, {"sort": "ShipBy"}),
-)
 MAX_RECENT = 8
 MAX_HISTORY = 30
-
-
-def op_by_name(full_name: str) -> spec.Operation | None:
-    """`group name` back to its operation."""
-    group, _, name = full_name.partition(" ")
-    return spec.find(group, name)
 
 
 class NameScreen(ModalScreen):
@@ -227,62 +213,69 @@ class HelpScreen(ModalScreen):
         self.dismiss(None)
 
 
-def first_ok(o: spec.Operation) -> bool:
-    """Can this operation be sent from the TUI?"""
-    return (o.is_public and not o.is_write) or (not o.is_public and o.runnable)
+# The sidebar's section colours were picked for a dark background. On a sidebar painted in
+# the theme's $panel (`"sidebar-on-panel": "1"`, e.g. the navy one of cin7-light) the ANSI
+# cyan and the darker purples fall below readable contrast, so those tags are swapped for
+# lighter ones. This applies to every sidebar row, a host provider's `style` and markup
+# labels included. Other themes keep the original tags.
+PANEL_RECOLOR = (
+    ("[bold cyan]", "[bold #7fd6ff]"),
+    ("[cyan]", "[#7fd6ff]"),
+    ("[yellow]", "[#ffd166]"),
+    ("#d070ff", "#d9a8ff"),
+    ("#b58ad8", "#cdb4ee"),
+)
 
 
-def is_list(o: spec.Operation) -> bool:
-    """A list view (as opposed to one record or an action): these are bold in the sidebar."""
-    return o.name == "list" or o.name.endswith("-list") or o.paged
-
-
-def leaf_label(o: spec.Operation, style: str = "") -> str:
-    """Tree label: bold for lists, ✎ for writes, ⬇ for downloads, ⛔ for internal ones that are never sent."""
-    if o.is_public:
-        if o.is_write:
-            return f"[yellow]✎ {o.name}[/]"
-        return f"[bold]{o.name}[/]" if is_list(o) else o.name
-    if o.source != "web":
-        return f"[dim]· {o.name}[/]"
-    if not o.runnable:
-        return f"[dim strike]⛔ {o.name}[/]"
-    mark = "⬇ " if o.file else "↻ " if o.read_via_post else ""
-    weight = "bold " if is_list(o) else ""
-    return f"[{weight}{style}]{mark}{o.name}[/]" if (style or weight) else f"{mark}{o.name}"
+def recolor_for_panel(label: str) -> str:
+    """`label` with the `PANEL_RECOLOR` swaps applied."""
+    for old, new in PANEL_RECOLOR:
+        label = label.replace(old, new)
+    return label
 
 
 CELL_WIDTHS = (24, 60, 160)
 
 
-def json_label(key: object, value: object) -> str:
-    """Tree label for one JSON member, colored by type."""
+def json_label(key: object, value: object, tags: dict[str, str] | None = None) -> str:
+    """Tree label for one JSON member, colored by type (`tags` picks the colours per theme)."""
+    tags = tags or themes_mod.TAGS_DARK
+    dim, kw, num, st = tags["dim"], tags["keyword"], tags["number"], tags["string"]
     k = f"[bold]{rich_escape(str(key))}[/]" if key is not None else ""
     sep = ": " if key is not None else ""
     if isinstance(value, dict):
-        return f"{k} [dim]{{{len(value)}}}[/]"
+        return f"{k} [{dim}]{{{len(value)}}}[/]"
     if isinstance(value, list):
-        return f"{k} [dim]\\[{len(value)}][/]"
+        return f"{k} [{dim}]\\[{len(value)}][/]"
     if value is None:
-        return f"{k}{sep}[magenta]null[/]"
+        return f"{k}{sep}[{kw}]null[/]"
     if isinstance(value, bool):
-        return f"{k}{sep}[magenta]{'true' if value else 'false'}[/]"
+        return f"{k}{sep}[{kw}]{'true' if value else 'false'}[/]"
     if isinstance(value, (int, float)):
         shown = output.money(value) if output.is_money(str(key)) else value
-        return f"{k}{sep}[cyan]{shown}[/]"
+        return f"{k}{sep}[{num}]{shown}[/]"
     text = output.clean_date(str(value))
-    return f"{k}{sep}[green]\"{rich_escape(text[:200])}{'…' if len(text) > 200 else ''}\"[/]"
+    return f"{k}{sep}[{st}]\"{rich_escape(text[:200])}{'…' if len(text) > 200 else ''}\"[/]"
 
 
-def fill_json(node, value: object) -> None:
+def fill_json(node, value: object, tags: dict[str, str] | None = None) -> None:
     """Add `value`'s members under `node`; containers fill lazily when opened."""
     items = value.items() if isinstance(value, dict) else enumerate(value) if isinstance(value, list) else ()
     for k, v in items:
-        label = json_label(k, v)
+        label = json_label(k, v, tags)
         if isinstance(v, (dict, list)) and v:
-            node.add(label, data=("lazy", v))
+            node.add(label, data=("lazy", v, k))
         else:
-            node.add_leaf(label, data=("leaf", v))
+            node.add_leaf(label, data=("leaf", v, k))
+
+
+def relabel_json(node, tags: dict[str, str]) -> None:
+    """Rebuild every member label under `node` with `tags`, keeping expansion and cursor."""
+    for child in node.children:
+        data = child.data
+        if isinstance(data, tuple) and len(data) == 3 and data[0] in ("lazy", "done", "leaf"):
+            child.set_label(json_label(data[2], data[1], tags))
+        relabel_json(child, tags)
 
 
 def load_ui_state() -> dict:
@@ -357,6 +350,7 @@ HELP_ROWS = (
     ("", "ctrl+s · ctrl+o", "save the form under a name · load or delete a saved filter"),
     ("History", "<  >", "back and forward through earlier results"),
     ("", "k", "freeze the current table in a right-hand pane to compare"),
+    ("Theme", "ctrl+t", "cycle colour themes (light, dark)"),
     ("Sidebar", "ctrl+b", "hide or show"),
     ("", "[  ]", "narrower · wider"),
     ("", "c · m · /", "compact (no counts) · show or hide writes (never sent) · filter operations"),
@@ -396,15 +390,65 @@ class Cin7Tui(App):
     TITLE = "cin7"
     SUB_TITLE = ""
     CSS = """
+    Header { color: $footer-foreground; }
+    .-light-mode Tab { color: $foreground 80%; }
+    .-light-mode Tree > .tree--cursor { background: $light-cursor-background; color: $light-cursor-foreground; }
+    .-light-mode Tree:focus > .tree--cursor { background: $light-cursor-background; color: $light-cursor-foreground; }
+    .-light-mode Tab.-active { color: $foreground; }
+    .-light-mode Input > .input--placeholder { color: $foreground 70%; }
+    .-light-mode .row Button.multi { color: $foreground; }
+    .-light-mode SelectCurrent Static#label { color: $foreground 75%; }
+    .-light-mode SelectCurrent .arrow { color: $foreground 75%; }
+    .-light-mode Button.-primary { background: $light-cursor-background; color: $light-cursor-foreground; }
+    .-light-mode Button.-primary:hover, .-light-mode Button.-primary:focus {
+        background: $light-button-hover; color: $light-cursor-foreground;
+    }
+    .-light-mode #actions Checkbox > .toggle--button { color: $light-toggle; }
+    /* Table header: Textual paints it with $panel, which may be dark (cin7-light's navy) and swallow the text. */
+    .-light-mode DataTable > .datatable--header {
+        background: $light-header-background; color: $light-header-foreground; text-style: bold;
+    }
+    .-light-mode DataTable > .datatable--header-hover { background: $light-header-hover; color: $light-header-foreground; }
+    .-light-mode DataTable > .datatable--header-cursor {
+        background: $light-cursor-background; color: $light-cursor-foreground;
+    }
+    .-light-mode DataTable > .datatable--cursor, .-light-mode DataTable > .datatable--fixed-cursor {
+        background: $light-cursor-background; color: $light-cursor-foreground;
+    }
+    /* Sidebar scrollbar: thumb at least 3:1 against its track (WCAG non-text). */
+    .-dark-mode #left, .-dark-mode #left Tree {
+        scrollbar-color: $sidebar-scrollbar; scrollbar-color-hover: $sidebar-scrollbar-hover;
+        scrollbar-color-active: $sidebar-scrollbar-active;
+    }
+    /* `"sidebar-on-panel": "1"` themes: the sidebar is $panel with the bars' text colour. */
+    .-sidebar-on-panel #left { background: $panel; color: $footer-foreground; }
+    .-sidebar-on-panel #left Input { background: $sidebar-input-background; color: $footer-foreground; }
+    .-sidebar-on-panel #left Input > .input--placeholder { color: $sidebar-placeholder; }
+    .-sidebar-on-panel #left Tree { background: $panel; color: $footer-foreground; }
+    .-sidebar-on-panel #left Tree > .tree--guides { color: $sidebar-guides; }
+    .-sidebar-on-panel #left Tree > .tree--cursor {
+        background: $sidebar-cursor-background; color: $sidebar-cursor-foreground; text-style: bold;
+    }
+    .-sidebar-on-panel #left Tree:focus > .tree--cursor {
+        background: $sidebar-cursor-background; color: $sidebar-cursor-foreground;
+    }
+    .-sidebar-on-panel #left, .-sidebar-on-panel #left Tree {
+        scrollbar-background: $panel; scrollbar-background-hover: $panel; scrollbar-background-active: $panel;
+        scrollbar-color: $sidebar-scrollbar; scrollbar-color-hover: $sidebar-scrollbar-hover;
+        scrollbar-color-active: $sidebar-scrollbar-active;
+        scrollbar-corner-color: $panel;
+    }
     #modebar { height: 1; padding: 0 1; text-style: bold; }
     #modebar.idle { background: $success 25%; }
     #modebar.public { background: $success 35%; }
     #modebar.internal { background: $error 55%; color: white; }
     #modebar.reference { background: $warning 40%; }
-    #left { width: 44; border-right: solid $panel; }
+    #left, #right { border: round $panel-lighten-1; }
+    #left { width: 30; }
     #left.hidden { display: none; }
     #filter { margin: 0 1; }
     #ops { height: 1fr; }
+    Tree { padding: 0 1; }
     #right { width: 1fr; }
     #op-title { padding: 0 1; text-style: bold; }
     #op-meta { padding: 0 1; color: $text-muted; }
@@ -430,7 +474,7 @@ class Cin7Tui(App):
     #summary { height: 1fr; }
     #tables { height: 1fr; }
     #table { height: 1fr; width: 1fr; }
-    #side { display: none; width: 1fr; border-left: solid $panel; }
+    #side { display: none; width: 1fr; border-left: solid $panel-lighten-1; }
     #side.on { display: block; }
     #side-title { color: $text-muted; padding: 0 1; }
     #table2 { height: 1fr; }
@@ -438,6 +482,7 @@ class Cin7Tui(App):
     BINDINGS = [
         Binding("ctrl+r", "run", "Run"),
         Binding("ctrl+b", "toggle_sidebar", "Sidebar"),
+        Binding("ctrl+t", "cycle_theme", "Theme", show=False),
         Binding("ctrl+f", "focus_search", "Search"),
         Binding("ctrl+e", "export", "CSV"),
         Binding("ctrl+j", "export_json", "JSON", show=False),
@@ -473,8 +518,50 @@ class Cin7Tui(App):
         Binding("ctrl+q", "quit", "Quit"),
     ]
 
-    def __init__(self, rate: float = DEFAULT_PER_MIN, export_dir: Path | None = None):
+    def __init__(
+        self,
+        rate: float = DEFAULT_PER_MIN,
+        export_dir: Path | None = None,
+        *,
+        themes: Sequence[Theme] | None = None,
+        splash: splash_mod.Splash | None = splash_mod.CIN7_SPLASH,
+        show_splash: bool | None = None,
+        providers: Sequence[providers_mod.CollectionProvider] | None = None,
+        sidebar_width: int | None = None,
+    ):
+        """`rate` and `export_dir` may be positional; everything after them is keyword-only.
+
+        `themes` are the colour themes (see `cin7_cli.theme`); the first is active at start,
+        `ctrl+t` cycles them. None means cin7-light then cin7-dark.
+
+        `splash` is what the boot splash shows (None: none). `show_splash` None follows
+        `CIN7_TUI_SPLASH` (on unless "0"); True or False overrides it.
+
+        `providers` are the sidebar's top-level sections, in order (see `cin7_cli.providers`);
+        None means Quick views then All operations. Pinned and recent operations always
+        come first.
+
+        `sidebar_width` is the sidebar's starting width in columns. None keeps the built-in
+        default (30). Either way a width saved in ui.json (the user pressed `[` or `]`, or
+        any other remembered setting was saved) wins, so this only sets the width of a fresh
+        install."""
         super().__init__()
+        self.providers: list[providers_mod.CollectionProvider] = (
+            providers_mod.default_providers() if providers is None else list(providers)
+        )
+        for p in self.providers:
+            attach = getattr(p, "attach", None)
+            if callable(attach):
+                attach(self)
+        self._provider_leaves: dict = {}  # tree node id -> (provider, Node), for leaves the TUI hands back
+        self._tree_keys: dict = {}  # tree node id -> stable key path, to keep the sidebar's place on rebuild
+        self._tree_filter: str | None = None  # filter text of the last rebuild
+        self.splash_cfg = splash
+        self.show_splash = splash_mod.enabled(False) if show_splash is None else show_splash
+        self.tags: dict[str, str] = dict(themes_mod.TAGS_DARK)
+        self.row_colours: dict[str, str] = dict(themes_mod.ROW_DARK)
+        self._side_rows: tuple[list[str], list[dict]] = ([], [])
+        self.themes: list[Theme] = list(themes) if themes else list(themes_mod.DEFAULT_THEMES)
         self.rate = rate
         self.export_dir = export_dir or Path.cwd()
         self.op: spec.Operation | None = None
@@ -491,7 +578,7 @@ class Cin7Tui(App):
         self.clients: dict = {}
         self.running = False
         ui = load_ui_state()
-        self.sidebar_width = int(ui.get("sidebar_width", 44))
+        self.sidebar_width = int(ui.get("sidebar_width", 30 if sidebar_width is None else sidebar_width))
         self.compact = bool(ui.get("compact", False))
         self.show_writes = bool(ui.get("show_writes", False))
         self.pins: list[str] = list(ui.get("pins", []))
@@ -547,6 +634,10 @@ class Cin7Tui(App):
         yield Footer()
 
     def on_mount(self) -> None:
+        themes_mod.register(self, self.themes)
+        self.theme = self.themes[0].name
+        self.theme_changed_signal.subscribe(self, self._chrome_for_theme)
+        self._chrome_for_theme(self.current_theme)
         self._set_mode(None)
         self._apply_sidebar()
         self._fill_tree("")
@@ -556,6 +647,8 @@ class Cin7Tui(App):
         dl.add_columns("When", "What", "Saved to")
         self._fill_downloads()
         self.log_line(f"API root {base_url()} · {self.rate:g} calls/min shared with every cin7 process")
+        if self.show_splash and self.splash_cfg is not None:
+            self.push_screen(splash_mod.SplashScreen(self.splash_cfg))
 
     # --- sidebar -------------------------------------------------------------
 
@@ -576,6 +669,51 @@ class Cin7Tui(App):
                 "saved": self.saved,
             }
         )
+
+    def _dim_label(self, text: str) -> Label:
+        label = Label("")
+        self._tagged(label, lambda: f"[{self.tags['dim']}]{text}[/]")
+        return label
+
+    def _tagged(self, widget: Static, build) -> None:
+        """Show `build()` in `widget` and rebuild it whenever the theme (and so the tags) changes."""
+        widget._retag = build  # type: ignore[attr-defined]
+        widget.update(build())
+
+    def _retag_all(self) -> None:
+        for w in self.query(Static):
+            build = getattr(w, "_retag", None)
+            if build is not None:
+                w.update(build())
+        for tree_id in ("#record-tree", "#json-tree", "#shape-tree"):
+            tree = self.query_one(tree_id, Tree)
+            relabel_json(tree.root, self.tags)
+            tree.refresh()
+
+    def get_css_variables(self) -> dict[str, str]:
+        """Textual's variables for the theme, plus the TUI's own (`theme.derived_variables`)
+        for any the theme does not set in its `variables`."""
+        variables = super().get_css_variables()
+        for name, value in themes_mod.derived_variables(variables).items():
+            variables.setdefault(name, value)
+        self.theme_variables = variables
+        return variables
+
+    def _chrome_for_theme(self, t: Theme) -> None:
+        """Sidebar on $panel for themes that ask for it (cin7-light's navy); tag and row colours."""
+        self.set_class(themes_mod.has_sidebar_on_panel(t), "-sidebar-on-panel")
+        self.tags = dict(themes_mod.tags_for(t))
+        self.row_colours = dict(themes_mod.row_colours_for(t))
+        if self.is_mounted and self.query("#ops"):
+            self._fill_tree(self.query_one("#filter", Input).value)
+            self._retag_all()
+            self._recolour_rows()
+
+    def action_cycle_theme(self) -> None:
+        names = [t.name for t in self.themes]
+        i = names.index(self.theme) if self.theme in names else -1
+        self.theme = names[(i + 1) % len(names)]
+        self.set_status(f"theme {self.theme}")
 
     def action_toggle_sidebar(self) -> None:
         self.sidebar_shown = not self.sidebar_shown
@@ -622,61 +760,120 @@ class Cin7Tui(App):
         for c in ("idle", "public", "internal", "reference"):
             bar.set_class(c == cls, c)
 
+    def refresh_sidebar(self) -> None:
+        """Rebuild the sidebar from the providers, e.g. after a provider has new data.
+
+        Uses the current filter text, and keeps open branches open, closed ones closed and
+        the cursor on the same row (matched by section title and `Node.id` path). If that
+        row is gone, the cursor goes to its nearest remaining parent."""
+        self._fill_tree(self.query_one("#filter", Input).value)
+
+    def _tree_position(self, tree: Tree) -> tuple[dict[tuple, bool], tuple | None]:
+        """Open/closed state of every branch, and the cursor row, as stable key paths."""
+        opened: dict[tuple, bool] = {}
+        stack = list(tree.root.children)
+        while stack:
+            node = stack.pop()
+            key = self._tree_keys.get(node.id)
+            if key is not None and node.children:
+                opened[key] = node.is_expanded
+            stack.extend(node.children)
+        cursor = tree.cursor_node
+        return opened, (self._tree_keys.get(cursor.id) if cursor is not None else None)
+
     def _fill_tree(self, text: str) -> None:
+        """Rebuild the sidebar: pinned and recent operations, then one section per provider.
+
+        Branches keep their open or closed state when the filter text is unchanged (theme
+        change, `refresh_sidebar`, compact or writes toggled); the cursor stays on its row
+        whenever that row is still there."""
         tree = self.query_one("#ops", Tree)
+        needle = text.lower().strip()
+        opened, cursor_key = self._tree_position(tree)
+        if needle != self._tree_filter:
+            opened = {}  # a new filter opens what matches; don't fight it
+        self._tree_filter = needle
         tree.show_root = False
-        tree.guide_depth = 3
+        tree.guide_depth = 2
         tree.clear()
         tree.root.expand()
-        needle = text.lower().strip()
-        by_group = spec.groups()
+        self._provider_leaves = {}
+        self._tree_keys = {}
+        by_key: dict[tuple, object] = {}
+        on_panel = themes_mod.has_sidebar_on_panel(self.current_theme)
 
-        def matches(ops: list[spec.Operation]) -> list[spec.Operation]:
-            return [
-                o
-                for o in ops
-                if (self.show_writes or first_ok(o))
-                and (not needle or needle in f"{o.group} {o.name} {o.path} {o.resource} {o.title}".lower())
-            ]
+        def tint(label: str) -> str:
+            return recolor_for_panel(label) if on_panel else label
 
-        def section(label: str, groups: list[str], style: str, leaf_style: str = "") -> None:
-            found = [(g, matches(by_group[g])) for g in groups if g in by_group]
-            found = [(g, m) for g, m in found if m]
-            if not found:
-                return
-            head = tree.root.add(label, data=None, expand=True)
-            for g, ops in found:
-                sendable = sum(first_ok(o) for o in ops)
-                title = MAIN_TITLES.get(g) or ops[0].group_title.removeprefix("Web · ")
-                counts = "" if self.compact else f" [dim]{sendable}/{len(ops)}[/]" if self.show_writes else f" [dim]{len(ops)}[/]"
-                node = head.add(f"[{style}]{title}[/]{counts}", data=("group", g), expand=bool(needle))
-                for o in ops:
-                    node.add_leaf(leaf_label(o, leaf_style), data=o)
+        def keep(node, key: tuple):
+            if key not in by_key:  # duplicate ids: the first one keeps the place
+                by_key[key] = node
+                self._tree_keys[node.id] = key
+            return node
 
-        def quick_section(label: str, names: list[str]) -> None:
+        def quick_section(sid: str, label: str, names: list[str]) -> None:
             ops = [o for o in (op_by_name(n) for n in names) if o is not None and (not needle or needle in o.full_name)]
             if not ops:
                 return
-            head = tree.root.add(label, data=None, expand=True)
+            head = keep(tree.root.add(label, data=None, expand=True), (sid,))
             for o in ops:
-                head.add_leaf(f"{o.full_name}", data=o)
+                keep(head.add_leaf(f"{o.full_name}", data=o), (sid, o.full_name))
 
-        quick_section("[bold]◆ PINNED[/]", self.pins)
-        quick_section("[bold]↺ RECENT[/]", [n for n in self.recent if n not in self.pins][:MAX_RECENT])
-        public = [g for g, ops in by_group.items() if ops[0].is_public]
-        section("[bold]★ MAIN[/]", [g for g in MAIN_GROUPS if g in public], "bold black on #ffb454")
-        section("[bold cyan]◇ PUBLIC API[/] [dim]· API key[/]", [g for g in public if g not in MAIN_GROUPS], "cyan")
-        web = [g for g, ops in by_group.items() if ops[0].source == "web"]
-        web.sort(key=lambda g: (g.removeprefix("web-") not in MAIN_WEB, g))
-        section("[bold #d070ff]⬢ INTERNAL[/] [dim]· your login · reads only[/]", web, "#d070ff", "#b58ad8")
-        prints = [p for p in printing.endpoints() if not needle or needle in f"{p.path} {p.where}".lower()]
-        if prints:
-            head = tree.root.add("[bold #4fd1c5]⎙ PRINT[/] [dim]· where printing lives[/]", data=None, expand=bool(needle))
-            for pe in prints:
-                mark = "" if pe.sendable else " [dim](not mapped)[/]"
-                head.add_leaf(f"[#4fd1c5]{pe.path}[/] [dim]{'bulk' if pe.bulk else 'one'}[/]{mark}", data=("print", pe))
-        ref = [g for g, ops in by_group.items() if ops[0].source in ("wms", "mes", "report-service")]
-        section("[bold dim]▫ REFERENCE[/] [dim]· never sent[/]", ref, "dim")
+        def add(parent, nodes: list[providers_mod.Node], provider, path: tuple) -> None:
+            for n in nodes:
+                label = providers_mod.render_label(n, tint)
+                key = (*path, str(n.id))
+                if n.children:
+                    add(keep(parent.add(label, data=n.data, expand=n.expanded), key), n.children, provider, key)
+                else:
+                    leaf = keep(parent.add_leaf(label, data=n.data), key)
+                    self._provider_leaves[leaf.id] = (provider, n)
+
+        quick_section("pinned", "[bold]◆ PINNED[/]", self.pins)
+        quick_section("recent", "[bold]↺ RECENT[/]", [n for n in self.recent if n not in self.pins][:MAX_RECENT])
+        for provider in self.providers:
+            title = str(getattr(provider, "title", "") or type(provider).__name__)
+            heading = f"[bold]{rich_escape(title)}[/]"  # a provider's title is plain text
+            path = ("section", title)
+            head = None
+            known = set(self._provider_leaves)
+            try:  # one broken section (its nodes, a label, a style) must not take the sidebar down
+                nodes = list(provider.nodes(text.strip()))
+                if not nodes:
+                    continue
+                head = keep(tree.root.add(heading, data=None, expand=bool(getattr(provider, "expanded", True))), path)
+                add(head, nodes, provider, path)
+            except Exception as e:
+                if head is not None:  # drop the half-built section
+                    for key in set(self._provider_leaves) - known:
+                        del self._provider_leaves[key]
+                    for key in [k for k in by_key if k[:2] == path]:
+                        del by_key[key]
+                    head.remove()
+                head = keep(tree.root.add(heading, data=None, expand=True), path)
+                # ("error",) is the TUI's own data: enter on it does nothing, and it is never handed to `run`
+                head.add_leaf(f"[red]error: {rich_escape(str(e) or type(e).__name__)}[/]", data=("error",))
+                self.log_line(f"[red]sidebar section {rich_escape(title)}: {rich_escape(repr(e))}[/]")
+        self._restore_position(tree, by_key, opened, cursor_key)
+
+    def _restore_position(self, tree: Tree, by_key: dict, opened: dict[tuple, bool], cursor_key: tuple | None) -> None:
+        for key, is_open in opened.items():
+            node = by_key.get(key)
+            if node is not None and node.children:
+                node.expand() if is_open else node.collapse()
+        if cursor_key is None:
+            return
+        target = None
+        while cursor_key and target is None:  # the row, else its nearest remaining parent
+            target = by_key.get(cursor_key)
+            cursor_key = cursor_key[:-1]
+        if target is None:
+            return
+        tree.last_line  # noqa: B018 - lays the rows out, so every node knows its line
+        while target is not None and target.line < 0:  # inside a closed branch: its visible parent
+            target = target.parent
+        if target is not None and not target.is_root:
+            tree.move_cursor(target)
 
     # --- events -------------------------------------------------------------
 
@@ -704,6 +901,16 @@ class Cin7Tui(App):
             self.select(data)
         elif isinstance(data, tuple) and data and data[0] == "print":
             self._show_print_info(data[1])
+        elif isinstance(data, tuple) and data and data[0] == "quick":
+            self.action_quick(data[1])
+        elif isinstance(data, tuple) and data and data[0] == "error":
+            pass  # a provider's error row: nothing to run
+        elif event.node.id in self._provider_leaves:
+            provider, node = self._provider_leaves[event.node.id]
+            try:
+                provider.run(self, node)
+            except Exception as e:
+                self.notify(f"{node.label}: {e}", severity="error", markup=False)
         else:
             event.node.toggle()
 
@@ -711,8 +918,8 @@ class Cin7Tui(App):
     def _lazy(self, event: Tree.NodeExpanded) -> None:
         node = event.node
         if isinstance(node.data, tuple) and node.data and node.data[0] == "lazy":
-            fill_json(node, node.data[1])
-            node.data = ("done", node.data[1])
+            fill_json(node, node.data[1], self.tags)
+            node.data = ("done", node.data[1], node.data[2])
 
     @on(Input.Submitted, "#form Input")
     def _submit(self) -> None:
@@ -754,7 +961,7 @@ class Cin7Tui(App):
         tree.clear()
         label = row.get("CustomerReference") or row.get("OrderNumber") or row.get("Name") or row.get("SKU") or "record"
         tree.root.set_label(f"[bold]{rich_escape(str(label))}[/]")
-        fill_json(tree.root, row)
+        fill_json(tree.root, row, self.tags)
         tree.root.expand()
         self.query_one("#results", TabbedContent).active = "tab-record"
         tree.focus()
@@ -765,13 +972,18 @@ class Cin7Tui(App):
         """Show `op`'s form and shape."""
         self.op = op
         self._set_mode(op)
-        if op.is_public:
-            kind = "[yellow]WRITE · not runnable here[/]" if op.is_write else "read"
-        elif op.runnable:
-            kind = "[#d070ff]INTERNAL read · browser session[/]" + (" · download" if op.file else "")
-        else:
-            kind = "[#d070ff]INTERNAL · never sent[/]" if op.source == "web" else "[dim]reference only[/]"
-        self.query_one("#op-title", Static).update(f"cin7 {op.full_name}  [dim]{kind}[/]")
+
+        def title() -> str:
+            t = self.tags
+            if op.is_public:
+                kind = f"[{t['write']}]WRITE · not runnable here[/]" if op.is_write else "read"
+            elif op.runnable:
+                kind = f"[{t['internal']}]INTERNAL read · browser session[/]" + (" · download" if op.file else "")
+            else:
+                kind = f"[{t['internal']}]INTERNAL · never sent[/]" if op.source == "web" else f"[{t['dim']}]reference only[/]"
+            return f"cin7 {op.full_name}  [{t['dim']}]{kind}[/]"
+
+        self._tagged(self.query_one("#op-title", Static), title)
         alias = f" · alias {', '.join(op.aliases)}" if op.aliases else ""
         pages = f" · used on {', '.join(op.pages[:4])}" if op.pages else ""
         self.query_one("#op-meta", Static).update(f"{op.method} {op.path} · {op.title}{alias}{pages}")
@@ -784,11 +996,11 @@ class Cin7Tui(App):
             widget = (ParamSelect(p) if p.type == "bool" else ParamMulti(p)) if p.choices else ParamInput(p, find=r.hint if r else "")
             rows.append(Horizontal(Label(f"{p.name}{star}"), widget, classes="row"))
         if not rows:
-            rows.append(Label("[dim]No query parameters[/]"))
+            rows.append(self._dim_label("No query parameters"))
         form.remove_class("collapsed")
         form.mount_all(rows)
         if op.read_via_post:
-            form.mount(Horizontal(Label("[dim]JSON query body[/]"), Input(placeholder="{}", id="post-body"), classes="row"))
+            form.mount(Horizontal(self._dim_label("JSON query body"), Input(placeholder="{}", id="post-body"), classes="row"))
         sendable = first_ok(op)
         box = self.query_one("#all-pages", Checkbox)
         box.disabled = not op.paged or not sendable
@@ -798,7 +1010,7 @@ class Cin7Tui(App):
         tree = self.query_one("#shape-tree", Tree)
         tree.clear()
         tree.root.set_label(f"[bold]{op.full_name}[/]")
-        fill_json(tree.root, shape)
+        fill_json(tree.root, shape, self.tags)
         tree.root.expand()
         if not sendable:
             self.query_one("#results", TabbedContent).active = "tab-shape"
@@ -992,7 +1204,7 @@ class Cin7Tui(App):
         jt = self.query_one("#json-tree", Tree)
         jt.clear()
         jt.root.set_label(f"[bold]{op.full_name}[/]")
-        fill_json(jt.root, data)
+        fill_json(jt.root, data, self.tags)
         jt.root.expand()
         self.query_one("#export", Button).disabled = not self.rows
         total = data.get("Total", data.get("total")) if isinstance(data, dict) else None
@@ -1030,6 +1242,32 @@ class Cin7Tui(App):
         self._draw_table()
         self._fill_summary()
 
+    def _row_colour(self, row: dict) -> str | None:
+        """The theme's colour for this row's status (None: plain)."""
+        style = rowtools.row_style(row)
+        return self.row_colours.get(style, style) if style else None
+
+    def _recolour_rows(self) -> None:
+        """Redraw the result tables in the new theme's row colours, keeping the cursor."""
+        table = self.query_one("#table", DataTable)
+        if table.row_count:
+            at = table.cursor_coordinate
+            self._draw_table()
+            if at.row < table.row_count and at.column < len(table.columns):
+                table.cursor_coordinate = at
+        t2 = self.query_one("#table2", DataTable)
+        if self.side_open and t2.row_count:
+            self._fill_side()
+
+    def _fill_side(self) -> None:
+        """Draw the frozen right-hand table from the rows kept when it was pinned."""
+        cols, rows = self._side_rows
+        t2 = self.query_one("#table2", DataTable)
+        t2.clear(columns=True)
+        t2.add_columns(*cols)
+        for r in rows:
+            t2.add_row(*[Text(output.cell(r.get(c))[: self.cell_width], style=Style(color=self._row_colour(r))) for c in cols])
+
     def _draw_table(self) -> None:
         table = self.query_one("#table", DataTable)
         table.clear(columns=True)
@@ -1041,7 +1279,7 @@ class Cin7Tui(App):
             table.add_column(c + (arrow[self.sort_desc] if c == self.sort_col else ""), key=c)
         table.fixed_columns = rowtools.frozen_columns(cols)
         for i, r in enumerate(self.view[:MAX_TABLE_ROWS]):
-            color = rowtools.row_style(r)
+            color = self._row_colour(r)
             link = rowtools.record_url(self.op, r) if self.op is not None else None
             cells = []
             rid = rowtools.record_id(r)
@@ -1312,13 +1550,14 @@ class Cin7Tui(App):
         self.data, self.rows, self.cols = snap["data"], snap["rows"], snap["cols"]
         self.hidden, self.sort_col, self.sort_desc, self.search_text = set(), None, False, ""
         self.query_one("#search", Input).value = ""
-        self.query_one("#op-title", Static).update(f"cin7 {self.op.full_name}  [dim]history {self.hpos + 1}/{len(self.history)}[/]")
+        full, pos, total = self.op.full_name, self.hpos + 1, len(self.history)
+        self._tagged(self.query_one("#op-title", Static), lambda: f"cin7 {full}  [{self.tags['dim']}]history {pos}/{total}[/]")
         self._rebuild_view()
         self._fill_group_choices()
         jt = self.query_one("#json-tree", Tree)
         jt.clear()
         jt.root.set_label(f"[bold]{self.op.full_name}[/]")
-        fill_json(jt.root, self.data)
+        fill_json(jt.root, self.data, self.tags)
         jt.root.expand()
         self.set_status(f"{len(self.rows)} rows · from {snap['when']} · history {self.hpos + 1}/{len(self.history)} (< >)")
 
@@ -1348,12 +1587,8 @@ class Cin7Tui(App):
             return
         self.side_open = True
         side.add_class("on")
-        t2 = self.query_one("#table2", DataTable)
-        t2.clear(columns=True)
-        cols = self._shown_cols()
-        t2.add_columns(*cols)
-        for r in self.view[:MAX_TABLE_ROWS]:
-            t2.add_row(*[Text(output.cell(r.get(c))[: self.cell_width], style=Style(color=rowtools.row_style(r))) for c in cols])
+        self._side_rows = (self._shown_cols(), self.view[:MAX_TABLE_ROWS])
+        self._fill_side()
         self.query_one("#side-title", Static).update(
             f"pinned · {self.op.full_name} · {len(self.view)} rows · {time.strftime('%H:%M:%S')}  (k closes)"
         )
@@ -1366,7 +1601,10 @@ class Cin7Tui(App):
     def _show_print_info(self, pe: printing.PrintEndpoint) -> None:
         self.op = None
         self._set_mode(None)
-        self.query_one("#op-title", Static).update(f"[bold #4fd1c5]⎙ {pe.path}[/]  [dim]{'bulk' if pe.bulk else 'one record'}[/]")
+        self._tagged(
+            self.query_one("#op-title", Static),
+            lambda: f"[bold {self.tags['print']}]⎙ {pe.path}[/]  [{self.tags['dim']}]{'bulk' if pe.bulk else 'one record'}[/]",
+        )
         self.query_one("#op-meta", Static).update(f"Lives on: {pe.where or 'unknown'}")
         form = self.query_one("#form", VerticalScroll)
         form.remove_children()
@@ -1378,14 +1616,16 @@ class Cin7Tui(App):
             if pe.sendable
             else "The map doesn't say what this endpoint takes, so it can't be sent from here."
         )
-        form.mount(Static(how + f"\n[dim]{PRINT_NOTE}[/]"))
+        note = Static("")
+        form.mount(note)
+        self._tagged(note, lambda: how + f"\n[{self.tags['dim']}]{PRINT_NOTE}[/]")
         self.query_one("#run", Button).disabled = True
         self.query_one("#all-pages", Checkbox).disabled = True
         tree = self.query_one("#shape-tree", Tree)
         tree.clear()
         tree.root.set_label(f"[bold]{pe.path}[/]")
         fill_json(tree.root, {"method": pe.method, "params": list(pe.params), "effect": pe.effect, "screens": list(pe.pages),
-                              "menu": list(pe.labels), "sendable": pe.sendable})
+                              "menu": list(pe.labels), "sendable": pe.sendable}, self.tags)
         tree.root.expand()
         self.query_one("#results", TabbedContent).active = "tab-shape"
         self.set_status("Print actions are never sent from this view.")
@@ -1533,7 +1773,7 @@ class Cin7Tui(App):
         self.query_one("#log", RichLog).write(text)
 
 
-def run(rate: float = DEFAULT_PER_MIN) -> int:
-    """Start the TUI. Returns an exit code."""
-    Cin7Tui(rate=rate).run()
+def run(rate: float = DEFAULT_PER_MIN, show_splash: bool | None = None) -> int:
+    """Start the TUI. Returns an exit code. `show_splash` None follows CIN7_TUI_SPLASH."""
+    Cin7Tui(rate=rate, show_splash=show_splash).run()
     return 0

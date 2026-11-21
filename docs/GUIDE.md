@@ -9,9 +9,10 @@ pipx install 'cin7-core-cli[tui] @ git+https://github.com/fightmilk808/cin7-core
 cin7 tui
 ```
 
-![cin7 tui listing sales by customer reference (sample data from the test mock)](tui.svg)
+![cin7 tui, light theme, listing sales by customer reference (invented data)](tui-light.svg)
 
 A [Textual](https://textual.textualize.io) terminal UI over the same spec, client, pacing and auth as the CLI. `?` lists every key.
+The `tui` extra needs Textual 8.2 or newer.
 
 | | |
 |---|---|
@@ -34,10 +35,99 @@ A [Textual](https://textual.textualize.io) terminal UI over the same spec, clien
 
 Record links come from the route names in the rebuild map's `pages.csv`; open one to check it before relying on it.
 
-![cin7 tui: sales sorted, colored by status, with the mode bar and main groups (sample data from the test mock)](tui.svg)
+![cin7 tui, dark theme: sales coloured by status, with the mode bar and main groups (invented data)](tui.svg)
 
 **Still read-only, full stop.** Write operations can be listed (`m`) so their request shapes can be read, but there is
 no way to send one from the TUI.
+
+### Themes
+
+The TUI starts in `cin7-light` (light content, navy sidebar, header and footer). **`ctrl+t`** cycles to `cin7-dark`, the
+look the app had before themes existed, and back; the choice is not saved. Both are `textual.theme.Theme` objects in
+`cin7_cli.theme` (`CIN7_LIGHT`, `CIN7_DARK`). Pass your own list to `Cin7Tui(themes=[...])`: the first is active at
+start and `ctrl+t` walks the list.
+
+A theme tunes the TUI through its `variables`. All are optional; any `sidebar-*` or `light-*` one it leaves out is
+derived from the theme's own `$panel`, `$primary`, `$background` and `$foreground`
+(`cin7_cli.theme.derived_variables`), never taken from Cin7's palette.
+
+| Variable | Used for |
+|---|---|
+| `sidebar-on-panel` | `"1"`: paint the sidebar in `$panel` with `$footer-foreground` text (cin7-light's navy sidebar). Set `footer-foreground` to a colour that reads on your `$panel`. |
+| `sidebar-input-background`, `sidebar-placeholder`, `sidebar-guides` | the filter box, its hint text and the tree guides on that sidebar |
+| `sidebar-cursor-background`, `sidebar-cursor-foreground` | the sidebar tree cursor (default `$primary`) |
+| `sidebar-scrollbar`, `sidebar-scrollbar-hover`, `sidebar-scrollbar-active` | the sidebar scrollbar thumb (on the `$panel` track; dark themes use it too) |
+| `light-cursor-background`, `light-cursor-foreground`, `light-button-hover` | light themes: tree and table cursor, the Run button |
+| `light-header-background`, `light-header-hover`, `light-header-foreground`, `light-toggle` | light themes: table header, unticked checkboxes |
+| `tag-dim`, `tag-write`, `tag-internal`, `tag-print`, `tag-number`, `tag-string`, `tag-keyword` | coloured text on the right: op title, record and JSON trees (defaults `theme.TAGS_DARK` / `TAGS_LIGHT`, picked by `dark`) |
+| `row-red`, `row-green`, `row-yellow` (or `row-amber`) | whole-row status colours in tables (defaults `theme.ROW_DARK` / `ROW_LIGHT`) |
+
+On a `sidebar-on-panel` sidebar, `cin7_cli.tui.PANEL_RECOLOR` swaps colours picked for a dark background (ANSI cyan
+and yellow, two purples) for lighter ones in **every** sidebar row, including your providers' `style` and markup
+labels: a row styled `"cyan"` is drawn `#7fd6ff` there.
+
+### Splash
+
+A short wordmark fades in at start (0.75 s) and gives way to the tree; any key or click skips it. It is on by default.
+Turn it off with `cin7 tui --no-splash`, or set `CIN7_TUI_SPLASH=0`. `ctrl+q` and `ctrl+c` still quit during it.
+
+![the boot splash, held at full strength](splash.svg)
+
+For your own app, pass a `cin7_cli.splash.Splash` as `Cin7Tui(splash=...)` (`None` for none):
+
+| Field | |
+|---|---|
+| `art`, `gradient` | the wordmark and the hex colours spread over its lines, top to bottom (darkened or lightened as needed to stay readable on the theme) |
+| `effect` | `"fade"`, `"none"`, or an `async def effect(screen)` that draws its own frames with `screen.draw(text)` |
+| `seconds`, `tagline` | how long it stays at most, and a line under the art |
+| `status_provider` | `async def () -> str`, awaited once; its text goes on a status line ("?" if it raises) |
+
+`Cin7Tui(show_splash=True|False)` overrides the environment.
+
+### Extending the TUI
+
+Each top-level section of the sidebar is a `CollectionProvider` (`cin7_cli.providers`). The built-in ones are
+`QuickViewsProvider` and `OperationsProvider`; `Cin7Tui(providers=[...])` replaces the list (pinned and recent
+operations always come first). A provider needs a `title`, `nodes(filter_text)` and `run(app, node)`:
+
+```python
+from cin7_cli.providers import Node, OperationsProvider
+from cin7_cli.tui import Cin7Tui
+
+class Watchlist:
+    title = "Watchlist"
+    expanded = True                       # optional: start open (default)
+
+    def nodes(self, filter_text: str) -> list[Node]:
+        picks = [("ABC-1", 90), ("ABC-2", 40), ("ABC-3", 5)]      # your data; no network in here
+        return [Node(id=s, label=s, icon="●", heat=h, data=s)
+                for s, h in picks if filter_text.lower() in s.lower()]
+
+    def run(self, app: Cin7Tui, node: Node) -> None:
+        app.notify(f"Open {node.data}")   # enter on a leaf the TUI does not handle itself
+
+Cin7Tui(providers=[Watchlist(), OperationsProvider()]).run()
+```
+
+`Cin7Tui(rate, export_dir, *, themes, splash, show_splash, providers, sidebar_width)`: only `rate` and `export_dir`
+may be passed by position. `sidebar_width=32` sets the sidebar's starting width for a fresh install; a width saved
+in `ui.json` (after `[` / `]`, or any remembered setting) still wins.
+
+A `Node` has `id`, `label`, `icon`, `heat` (0-100, drawn as a bar before the row), `children` (a branch if any),
+`expanded`, `data`, `style` and `markup`. The provider's `title`, a node's `label` and its `icon` are plain text:
+brackets show as typed and are never read as markup. `style` (a Rich style such as `"bold cyan"`) colours the whole
+label; one that does not parse is dropped. `markup=True` reads the label as Rich markup instead (the built-in sections
+use it), falling back to plain text if it does not parse. `nodes` runs on every filter keystroke and theme
+change, so keep it quick; if it raises, or one of its rows cannot be drawn, that section shows one error row and the
+rest keeps working.
+
+When your data changes (a usage feed refreshes, a background fetch lands), call **`app.refresh_sidebar()`** on the
+app's thread (from a worker: `app.call_from_thread(app.refresh_sidebar)`). It rebuilds every section with the current
+filter text. Every rebuild (this one, `ctrl+t`, `c`, `m`) keeps open branches open, closed ones closed and the cursor
+on the same row, matched by the section `title` and the chain of `Node.id`s, so keep ids stable between calls; if the
+row is gone the cursor goes to its nearest remaining parent. Typing a new filter opens what matches instead. An optional
+`attach(app)` is called once before the first `nodes` call. Leaves whose `data` is a `spec.Operation` (or the
+`("quick", key)`, `("print", endpoint)` and `("group", name)` tuples) are run by the TUI itself.
 
 ## Text instead of ids
 
@@ -245,7 +335,7 @@ these hold:
 ## Development
 
 ```bash
-pip install -e '.[dev]'
+pip install -e '.[dev]'                  # Textual >=8.2,<9: the tests read Textual's private compositor
 pytest -q --cov=cin7_cli                 # mock HTTP server only; no live calls
 python scripts/build_spec.py ../cin7-core-rebuild   # regenerate src/cin7_cli/spec.json from the API map
 ```
