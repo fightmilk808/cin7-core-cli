@@ -82,6 +82,18 @@ def tags_for(t: Theme) -> dict[str, str]:
     return TAGS_DARK if t.dark else TAGS_LIGHT
 
 
+# Whole-row status colours (`rowtools.row_style` returns the keys). Dark keeps the ANSI names
+# the app always used; light swaps them for darker values that are >= 4.5:1 on white, the
+# #f3f4f4 table body and the shaded locked columns (#c0ccdf).
+ROW_DARK: dict[str, str] = {"red": "red", "green": "green", "yellow": "yellow"}
+ROW_LIGHT: dict[str, str] = {"red": "#a01e14", "green": "#185a2b", "yellow": "#704a00"}
+
+
+def row_colours_for(t: Theme) -> dict[str, str]:
+    """Colours for `rowtools.row_style` results that read on the theme's table background."""
+    return ROW_DARK if t.dark else ROW_LIGHT
+
+
 def has_navy_side(t: Theme) -> bool:
     """True if the theme paints the sidebar navy with light text."""
     return t.variables.get("navy-side") == "1"

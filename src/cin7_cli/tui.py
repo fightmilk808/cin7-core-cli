@@ -402,7 +402,10 @@ class Cin7Tui(App):
     /* Table header: Textual paints it with the navy $panel, which swallows the dark text. */
     .-light-mode DataTable > .datatable--header { background: #dde5f0; color: #1d2633; text-style: bold; }
     .-light-mode DataTable > .datatable--header-hover { background: #c9d6e8; color: #1d2633; }
-    .-light-mode DataTable > .datatable--header-cursor { background: #2f7ff0; color: #ffffff; }
+    .-light-mode DataTable > .datatable--header-cursor { background: #1f63c7; color: #ffffff; }
+    .-light-mode DataTable > .datatable--cursor, .-light-mode DataTable > .datatable--fixed-cursor {
+        background: #1f63c7; color: #ffffff;
+    }
     .-navy-side #left { background: #1c2b41; color: #f3f5f8; }
     .-navy-side #left Input { background: #2a3d58; color: #f3f5f8; }
     .-navy-side #left Input > .input--placeholder { color: #bdcadd; }
@@ -526,6 +529,8 @@ class Cin7Tui(App):
         self.splash_cfg = splash
         self.show_splash = splash_mod.enabled(False) if show_splash is None else show_splash
         self.tags: dict[str, str] = dict(themes_mod.TAGS_DARK)
+        self.row_colours: dict[str, str] = dict(themes_mod.ROW_DARK)
+        self._side_rows: tuple[list[str], list[dict]] = ([], [])
         self.themes: list[Theme] = list(themes) if themes else list(themes_mod.DEFAULT_THEMES)
         self.rate = rate
         self.export_dir = export_dir or Path.cwd()
@@ -659,9 +664,11 @@ class Cin7Tui(App):
         """Navy sidebar for themes that ask for it (the light theme)."""
         self.set_class(themes_mod.has_navy_side(t), "-navy-side")
         self.tags = dict(themes_mod.tags_for(t))
+        self.row_colours = dict(themes_mod.row_colours_for(t))
         if self.is_mounted and self.query("#ops"):
             self._fill_tree(self.query_one("#filter", Input).value)
             self._retag_all()
+            self._recolour_rows()
 
     def action_cycle_theme(self) -> None:
         names = [t.name for t in self.themes]
@@ -1129,6 +1136,32 @@ class Cin7Tui(App):
         self._draw_table()
         self._fill_summary()
 
+    def _row_colour(self, row: dict) -> str | None:
+        """The theme's colour for this row's status (None: plain)."""
+        style = rowtools.row_style(row)
+        return self.row_colours.get(style, style) if style else None
+
+    def _recolour_rows(self) -> None:
+        """Redraw the result tables in the new theme's row colours, keeping the cursor."""
+        table = self.query_one("#table", DataTable)
+        if table.row_count:
+            at = table.cursor_coordinate
+            self._draw_table()
+            if at.row < table.row_count and at.column < len(table.columns):
+                table.cursor_coordinate = at
+        t2 = self.query_one("#table2", DataTable)
+        if self.side_open and t2.row_count:
+            self._fill_side()
+
+    def _fill_side(self) -> None:
+        """Draw the frozen right-hand table from the rows kept when it was pinned."""
+        cols, rows = self._side_rows
+        t2 = self.query_one("#table2", DataTable)
+        t2.clear(columns=True)
+        t2.add_columns(*cols)
+        for r in rows:
+            t2.add_row(*[Text(output.cell(r.get(c))[: self.cell_width], style=Style(color=self._row_colour(r))) for c in cols])
+
     def _draw_table(self) -> None:
         table = self.query_one("#table", DataTable)
         table.clear(columns=True)
@@ -1140,7 +1173,7 @@ class Cin7Tui(App):
             table.add_column(c + (arrow[self.sort_desc] if c == self.sort_col else ""), key=c)
         table.fixed_columns = rowtools.frozen_columns(cols)
         for i, r in enumerate(self.view[:MAX_TABLE_ROWS]):
-            color = rowtools.row_style(r)
+            color = self._row_colour(r)
             link = rowtools.record_url(self.op, r) if self.op is not None else None
             cells = []
             rid = rowtools.record_id(r)
@@ -1448,12 +1481,8 @@ class Cin7Tui(App):
             return
         self.side_open = True
         side.add_class("on")
-        t2 = self.query_one("#table2", DataTable)
-        t2.clear(columns=True)
-        cols = self._shown_cols()
-        t2.add_columns(*cols)
-        for r in self.view[:MAX_TABLE_ROWS]:
-            t2.add_row(*[Text(output.cell(r.get(c))[: self.cell_width], style=Style(color=rowtools.row_style(r))) for c in cols])
+        self._side_rows = (self._shown_cols(), self.view[:MAX_TABLE_ROWS])
+        self._fill_side()
         self.query_one("#side-title", Static).update(
             f"pinned · {self.op.full_name} · {len(self.view)} rows · {time.strftime('%H:%M:%S')}  (k closes)"
         )

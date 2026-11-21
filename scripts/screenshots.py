@@ -64,6 +64,10 @@ async def render() -> None:
     mock.routes[("GET", "/saleList")] = (200, {"Total": len(SALES), "Page": 1, "SaleList": _rows()}, {})
     os.environ["CIN7_BASE_URL"] = mock.url
 
+    # The status line shows how long the call took; pin it so a re-render gives the same SVG.
+    real_show = Cin7Tui._show
+    Cin7Tui._show = lambda self, op, data, seconds: real_show(self, op, data, 0.0)  # type: ignore[method-assign]
+
     async def settle(app, pilot) -> None:
         await app.workers.wait_for_complete()
         await pilot.pause()

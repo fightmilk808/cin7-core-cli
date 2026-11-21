@@ -4,7 +4,7 @@
 [![Zero deps](https://img.shields.io/badge/runtime%20deps-0-2ea44f)](pyproject.toml)
 [![Read only by default](https://img.shields.io/badge/writes-off%20by%20default-f0883e)](#safety)
 [![MCP](https://img.shields.io/badge/MCP-server-8957e5)](#mcp-server)
-[![Tests](https://img.shields.io/badge/tests-185%20passing-2ea44f)](tests/)
+[![Tests](https://img.shields.io/badge/tests-186%20passing-2ea44f)](tests/)
 [![MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 **Every Cin7 Core public API v2 operation as a command, a terminal UI, and an MCP server.** Generated from the [cin7-core-rebuild](https://github.com/fightmilk808/cin7-core-rebuild) map.
