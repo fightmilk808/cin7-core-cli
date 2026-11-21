@@ -69,8 +69,11 @@ class CollectionProvider(Protocol):
 
     The tree is rebuilt often (every filter keystroke, every theme change), so `nodes`
     should be quick and should not call the network itself; fetch elsewhere and return
-    what you have. If `nodes` raises, the section shows one "error" leaf and the rest of
-    the TUI keeps working.
+    what you have. When that fetch brings new data, call `app.refresh_sidebar()` (on the
+    app's thread, e.g. from a worker via `app.call_from_thread`) to redraw: open branches
+    and the cursor row stay where they were, matched by `title` and the chain of `Node.id`s,
+    so keep ids stable between calls. If `nodes` raises, or a row cannot be drawn, the
+    section shows one "error" leaf and the rest of the TUI keeps working.
     """
 
     title: str

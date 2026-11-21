@@ -526,6 +526,8 @@ class Cin7Tui(App):
             if callable(attach):
                 attach(self)
         self._provider_leaves: dict = {}  # tree node id -> (provider, Node), for leaves the TUI hands back
+        self._tree_keys: dict = {}  # tree node id -> stable key path, to keep the sidebar's place on rebuild
+        self._tree_filter: str | None = None  # filter text of the last rebuild
         self.splash_cfg = splash
         self.show_splash = splash_mod.enabled(False) if show_splash is None else show_splash
         self.tags: dict[str, str] = dict(themes_mod.TAGS_DARK)
@@ -721,59 +723,120 @@ class Cin7Tui(App):
         for c in ("idle", "public", "internal", "reference"):
             bar.set_class(c == cls, c)
 
+    def refresh_sidebar(self) -> None:
+        """Rebuild the sidebar from the providers, e.g. after a provider has new data.
+
+        Uses the current filter text, and keeps open branches open, closed ones closed and
+        the cursor on the same row (matched by section title and `Node.id` path). If that
+        row is gone, the cursor goes to its nearest remaining parent."""
+        self._fill_tree(self.query_one("#filter", Input).value)
+
+    def _tree_position(self, tree: Tree) -> tuple[dict[tuple, bool], tuple | None]:
+        """Open/closed state of every branch, and the cursor row, as stable key paths."""
+        opened: dict[tuple, bool] = {}
+        stack = list(tree.root.children)
+        while stack:
+            node = stack.pop()
+            key = self._tree_keys.get(node.id)
+            if key is not None and node.children:
+                opened[key] = node.is_expanded
+            stack.extend(node.children)
+        cursor = tree.cursor_node
+        return opened, (self._tree_keys.get(cursor.id) if cursor is not None else None)
+
     def _fill_tree(self, text: str) -> None:
-        """Rebuild the sidebar: pinned and recent operations, then one section per provider."""
+        """Rebuild the sidebar: pinned and recent operations, then one section per provider.
+
+        Branches keep their open or closed state when the filter text is unchanged (theme
+        change, `refresh_sidebar`, compact or writes toggled); the cursor stays on its row
+        whenever that row is still there."""
         tree = self.query_one("#ops", Tree)
+        needle = text.lower().strip()
+        opened, cursor_key = self._tree_position(tree)
+        if needle != self._tree_filter:
+            opened = {}  # a new filter opens what matches; don't fight it
+        self._tree_filter = needle
         tree.show_root = False
         tree.guide_depth = 2
         tree.clear()
         tree.root.expand()
         self._provider_leaves = {}
-        needle = text.lower().strip()
+        self._tree_keys = {}
+        by_key: dict[tuple, object] = {}
         navy = themes_mod.has_navy_side(self.current_theme)
 
         def tint(label: str) -> str:
             return recolor_for_navy(label) if navy else label
 
-        def quick_section(label: str, names: list[str]) -> None:
+        def keep(node, key: tuple):
+            if key not in by_key:  # duplicate ids: the first one keeps the place
+                by_key[key] = node
+                self._tree_keys[node.id] = key
+            return node
+
+        def quick_section(sid: str, label: str, names: list[str]) -> None:
             ops = [o for o in (op_by_name(n) for n in names) if o is not None and (not needle or needle in o.full_name)]
             if not ops:
                 return
-            head = tree.root.add(label, data=None, expand=True)
+            head = keep(tree.root.add(label, data=None, expand=True), (sid,))
             for o in ops:
-                head.add_leaf(f"{o.full_name}", data=o)
+                keep(head.add_leaf(f"{o.full_name}", data=o), (sid, o.full_name))
 
-        def add(parent, nodes: list[providers_mod.Node], provider) -> None:
+        def add(parent, nodes: list[providers_mod.Node], provider, path: tuple) -> None:
             for n in nodes:
                 label = providers_mod.render_label(n, tint)
+                key = (*path, str(n.id))
                 if n.children:
-                    add(parent.add(label, data=n.data, expand=n.expanded), n.children, provider)
+                    add(keep(parent.add(label, data=n.data, expand=n.expanded), key), n.children, provider, key)
                 else:
-                    leaf = parent.add_leaf(label, data=n.data)
+                    leaf = keep(parent.add_leaf(label, data=n.data), key)
                     self._provider_leaves[leaf.id] = (provider, n)
 
-        quick_section("[bold]◆ PINNED[/]", self.pins)
-        quick_section("[bold]↺ RECENT[/]", [n for n in self.recent if n not in self.pins][:MAX_RECENT])
+        quick_section("pinned", "[bold]◆ PINNED[/]", self.pins)
+        quick_section("recent", "[bold]↺ RECENT[/]", [n for n in self.recent if n not in self.pins][:MAX_RECENT])
         for provider in self.providers:
             title = str(getattr(provider, "title", "") or type(provider).__name__)
             heading = f"[bold]{rich_escape(title)}[/]"  # a provider's title is plain text
+            path = ("section", title)
             head = None
             known = set(self._provider_leaves)
             try:  # one broken section (its nodes, a label, a style) must not take the sidebar down
                 nodes = list(provider.nodes(text.strip()))
                 if not nodes:
                     continue
-                head = tree.root.add(heading, data=None, expand=bool(getattr(provider, "expanded", True)))
-                add(head, nodes, provider)
+                head = keep(tree.root.add(heading, data=None, expand=bool(getattr(provider, "expanded", True))), path)
+                add(head, nodes, provider, path)
             except Exception as e:
                 if head is not None:  # drop the half-built section
                     for key in set(self._provider_leaves) - known:
                         del self._provider_leaves[key]
+                    for key in [k for k in by_key if k[:2] == path]:
+                        del by_key[key]
                     head.remove()
-                head = tree.root.add(heading, data=None, expand=True)
+                head = keep(tree.root.add(heading, data=None, expand=True), path)
                 # ("error",) is the TUI's own data: enter on it does nothing, and it is never handed to `run`
                 head.add_leaf(f"[red]error: {rich_escape(str(e) or type(e).__name__)}[/]", data=("error",))
                 self.log_line(f"[red]sidebar section {rich_escape(title)}: {rich_escape(repr(e))}[/]")
+        self._restore_position(tree, by_key, opened, cursor_key)
+
+    def _restore_position(self, tree: Tree, by_key: dict, opened: dict[tuple, bool], cursor_key: tuple | None) -> None:
+        for key, is_open in opened.items():
+            node = by_key.get(key)
+            if node is not None and node.children:
+                node.expand() if is_open else node.collapse()
+        if cursor_key is None:
+            return
+        target = None
+        while cursor_key and target is None:  # the row, else its nearest remaining parent
+            target = by_key.get(cursor_key)
+            cursor_key = cursor_key[:-1]
+        if target is None:
+            return
+        tree.last_line  # noqa: B018 - lays the rows out, so every node knows its line
+        while target is not None and target.line < 0:  # inside a closed branch: its visible parent
+            target = target.parent
+        if target is not None and not target.is_root:
+            tree.move_cursor(target)
 
     # --- events -------------------------------------------------------------
 

@@ -319,3 +319,113 @@ def test_render_label_is_plain_and_survives_a_bad_style():
     assert shown.plain == "█ txt" and not shown.spans
     good = Text.from_markup(render_label(Node(id="a", label="txt", style="bold cyan")))
     assert good.plain == "txt" and good.spans
+
+
+# --- the sidebar keeps its place across rebuilds ---------------------------------------
+
+
+def _walk(node):
+    for k in node.children:
+        yield k
+        yield from _walk(k)
+
+
+def _find(tree, pred):
+    return next(n for n in _walk(tree.root) if pred(n))
+
+
+def _sales_group(tree):
+    return _find(tree, lambda n: n.data == ("group", "sale"))
+
+
+def _is_op(name):
+    return lambda n: isinstance(n.data, spec.Operation) and n.data.full_name == name
+
+
+class Changing:
+    """A provider whose rows change between calls, as a usage feed refreshes."""
+
+    title = "Usage"
+
+    def __init__(self):
+        self.extra: list[Node] = []
+        self.keep_b = True
+
+    def nodes(self, filter_text: str) -> list[Node]:
+        leaves = [Node(id="a", label="Alpha")] + ([Node(id="b", label="Beta")] if self.keep_b else [])
+        return [Node(id="grp", label="Group", children=leaves + self.extra)]  # starts collapsed
+
+    def run(self, app, node: Node) -> None:
+        pass
+
+
+async def test_ctrl_t_keeps_an_open_group_and_the_cursor(tmp_path):
+    from cin7_cli import theme
+
+    app = Cin7Tui(export_dir=tmp_path, themes=[theme.CIN7_LIGHT, theme.CIN7_DARK])
+    async with app.run_test(size=(140, 45)) as pilot:
+        await pilot.pause()
+        tree = app.query_one("#ops", Tree)
+        _sales_group(tree).expand()
+        quick = _section(tree, "Quick views")
+        quick.collapse()  # open by default: closing it must stick too
+        await pilot.pause()
+        tree.focus()
+        tree.move_cursor(_find(tree, _is_op("sale quote-get")))
+        await pilot.pause()
+        for theme_name in ("cin7-dark", "cin7-light"):
+            await pilot.press("ctrl+t")
+            await pilot.pause()
+            assert app.theme == theme_name
+            assert _sales_group(tree).is_expanded, theme_name
+            assert not _section(tree, "Quick views").is_expanded, theme_name
+            assert _is_op("sale quote-get")(tree.cursor_node), (theme_name, tree.cursor_node)
+
+
+async def test_custom_provider_node_keeps_its_place_across_ctrl_t_and_new_data(tmp_path):
+    from cin7_cli import theme
+
+    feed = Changing()
+    app = Cin7Tui(export_dir=tmp_path, themes=[theme.CIN7_LIGHT, theme.CIN7_DARK],
+                  providers=[providers.QuickViewsProvider(), feed, providers.OperationsProvider()])
+    async with app.run_test(size=(140, 45)) as pilot:
+        await pilot.pause()
+        tree = app.query_one("#ops", Tree)
+        group = _find(tree, lambda n: str(n.label) == "Group")
+        assert not group.is_expanded
+        group.expand()
+        await pilot.pause()
+        tree.focus()
+        tree.move_cursor(_find(tree, lambda n: str(n.label) == "Beta"))
+        await pilot.pause()
+
+        await pilot.press("ctrl+t")
+        await pilot.pause()
+        assert _find(tree, lambda n: str(n.label) == "Group").is_expanded
+        assert str(tree.cursor_node.label) == "Beta"
+
+        feed.extra = [Node(id="c", label="Gamma")]
+        feed.extra.insert(0, Node(id="z", label="Zeta"))
+        app.refresh_sidebar()
+        await pilot.pause()
+        kids = [str(n.label) for n in _find(tree, lambda n: str(n.label) == "Group").children]
+        assert kids == ["Alpha", "Beta", "Zeta", "Gamma"], "refresh_sidebar shows the new rows"
+        assert _find(tree, lambda n: str(n.label) == "Group").is_expanded
+        assert str(tree.cursor_node.label) == "Beta", "cursor stays on the same row"
+
+        feed.keep_b = False  # the row under the cursor goes away: no crash, cursor somewhere sensible
+        app.refresh_sidebar()
+        await pilot.pause()
+        assert tree.cursor_node is not None and app.is_running
+
+
+async def test_refresh_sidebar_keeps_the_filter(tmp_path):
+    fake = FakeProvider()
+    app = Cin7Tui(export_dir=tmp_path, providers=[fake])
+    async with app.run_test(size=(140, 45)) as pilot:
+        await pilot.pause()
+        app.query_one("#filter", Input).value = "alp"
+        await pilot.pause()
+        app.refresh_sidebar()
+        await pilot.pause()
+        assert fake.calls[-1] == "alp"

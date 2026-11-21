@@ -96,7 +96,13 @@ brackets show as typed and are never read as markup. `style` (a Rich style such 
 label; one that does not parse is dropped. `markup=True` reads the label as Rich markup instead (the built-in sections
 use it), falling back to plain text if it does not parse. `nodes` runs on every filter keystroke and theme
 change, so keep it quick; if it raises, or one of its rows cannot be drawn, that section shows one error row and the
-rest keeps working. An optional
+rest keeps working.
+
+When your data changes (a usage feed refreshes, a background fetch lands), call **`app.refresh_sidebar()`** on the
+app's thread (from a worker: `app.call_from_thread(app.refresh_sidebar)`). It rebuilds every section with the current
+filter text. Every rebuild (this one, `ctrl+t`, `c`, `m`) keeps open branches open, closed ones closed and the cursor
+on the same row, matched by the section `title` and the chain of `Node.id`s, so keep ids stable between calls; if the
+row is gone the cursor goes to its nearest remaining parent. Typing a new filter opens what matches instead. An optional
 `attach(app)` is called once before the first `nodes` call. Leaves whose `data` is a `spec.Operation` (or the
 `("quick", key)`, `("print", endpoint)` and `("group", name)` tuples) are run by the TUI itself.
 
