@@ -368,7 +368,7 @@ BARS = "▁▂▃▄▅▆▇█"
 class _HeatProvider:
     """A custom section with heat prefixes and coloured labels, as another app would add."""
 
-    title = "[bold cyan]Hot items[/]"
+    title = "Hot items"
 
     def nodes(self, filter_text):
         from cin7_cli.providers import Node

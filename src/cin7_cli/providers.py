@@ -14,6 +14,7 @@ This module does not import Textual, so a provider can be written and tested wit
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
@@ -32,16 +33,19 @@ class Node:
     """One row of the sidebar tree.
 
     Attributes:
-        id: Stable id within its provider (used by the provider, never shown).
-        label: Row text. Rich/Textual markup: escape any text that is not yours with
-            `textual.markup.escape` (or `rich.markup.escape`).
-        icon: Shown before the label, followed by a space ("" for none).
+        id: Stable id among its siblings. The TUI uses the chain of ids (with the section
+            title) to keep a row open and under the cursor across rebuilds; never shown.
+        label: Row text, shown as plain text: brackets are never read as markup.
+        icon: Shown before the label, followed by a space ("" for none). Plain text.
         heat: 0-100, drawn as a bar in front of the row (see `heat_prefix`); None for none.
         children: Child rows. A node with children is a branch, without them a leaf.
         expanded: Whether a branch starts open.
         data: Anything. The TUI acts on `spec.Operation`, `("quick", key)`, `("print", endpoint)`,
             `("group", name)` and `("error",)` itself; enter on any other leaf calls the provider's `run`.
-        style: Optional markup style for the label alone, e.g. "bold cyan".
+        style: Optional Rich style for the whole label, e.g. "bold cyan". A style that does
+            not parse is dropped (the label is shown unstyled).
+        markup: True reads `label` as Rich markup (the built-in sections use it for mixed
+            colours). Markup that does not parse is shown as plain text instead.
     """
 
     id: str
@@ -52,6 +56,7 @@ class Node:
     expanded: bool = False
     data: object = None
     style: str = ""
+    markup: bool = False
 
 
 @runtime_checkable
@@ -87,11 +92,56 @@ def heat_prefix(heat: int | None) -> str:
     return HEAT_BARS[max(0, min(7, int(heat) * 8 // 100))] + " "
 
 
-def render_label(node: Node) -> str:
-    """The markup a node is shown with: heat bar, icon, then the (styled) label."""
+def _markup_ok(markup: str) -> bool:
+    """True if `markup` parses and every style in it is one Rich can draw."""
+    from rich.style import Style
+    from rich.text import Text
+
+    try:
+        for span in Text.from_markup(markup).spans:
+            if isinstance(span.style, str):
+                Style.parse(span.style)
+    except Exception:  # noqa: BLE001 - MarkupError, StyleSyntaxError, ColorParseError...
+        return False
+    return True
+
+
+def _style_ok(style: str) -> bool:
+    from rich.style import Style
+
+    if "[" in style or "]" in style:
+        return False
+    try:
+        Style.parse(style)
+    except Exception:  # noqa: BLE001
+        return False
+    return True
+
+
+def render_label(node: Node, recolor: Callable[[str], str] | None = None) -> str:
+    """Markup for a row that always parses: heat bar, icon, then the (styled) label.
+
+    The icon and label are escaped, so they show exactly as given; with `node.markup` the
+    label is kept as markup if it parses. `recolor` rewrites markup tags (the TUI uses it to
+    lighten colours on a dark sidebar panel); it is applied to markup labels and to `style`.
+    A style that does not parse is dropped. Raises TypeError if `label` is not a str.
+    """
+    from rich.markup import escape
+
+    if not isinstance(node.label, str):
+        raise TypeError(f"Node {node.id!r}: label must be a str, not {type(node.label).__name__}")
+    recolor = recolor or (lambda s: s)
     icon = f"{node.icon} " if node.icon else ""
-    label = f"[{node.style}]{node.label}[/]" if node.style else node.label
-    return f"{heat_prefix(node.heat)}{icon}{label}"
+    body = escape(node.label)
+    if node.markup:
+        tinted = recolor(node.label)
+        if _markup_ok(tinted):
+            body = tinted
+    if node.style:
+        style = recolor(f"[{node.style}]")[1:-1]
+        if _style_ok(style):
+            body = f"[{style}]{body}[/]"
+    return f"{escape(heat_prefix(node.heat) + icon)}{body}"
 
 
 # --- operations ---------------------------------------------------------------------
@@ -168,7 +218,7 @@ class QuickViewsProvider:
     def nodes(self, filter_text: str) -> list[Node]:
         needle = filter_text.lower()
         return [
-            Node(id=f"quick-{key}", label=f"{label} [dim]{key}[/]", icon=READ_ICON, data=("quick", key))
+            Node(id=f"quick-{key}", label=f"{label} [dim]{key}[/]", icon=READ_ICON, data=("quick", key), markup=True)
             for key, label, group, name, _, _ in QUICK_VIEWS
             if not needle or needle in f"{label} {group} {name}".lower()
         ]
@@ -220,10 +270,10 @@ class OperationsProvider:
                 sendable = sum(first_ok(o) for o in ops)
                 title = MAIN_TITLES.get(g) or ops[0].group_title.removeprefix("Web · ")
                 counts = "" if compact else f" [dim]{sendable}/{len(ops)}[/]" if show_writes else f" [dim]{len(ops)}[/]"
-                leaves = [Node(id=o.full_name, label=leaf_label(o, leaf_style), icon=op_icon(o), data=o) for o in ops]
-                kids.append(Node(id=g, label=f"[{style}]{title}[/]{counts}", children=leaves,
+                leaves = [Node(id=o.full_name, label=leaf_label(o, leaf_style), icon=op_icon(o), data=o, markup=True) for o in ops]
+                kids.append(Node(id=g, label=f"[{style}]{title}[/]{counts}", children=leaves, markup=True,
                                  expanded=bool(needle), data=("group", g)))
-            out.append(Node(id=sid, label=label, children=kids, expanded=True))
+            out.append(Node(id=sid, label=label, children=kids, expanded=True, markup=True))
 
         public = [g for g, ops in by_group.items() if ops[0].is_public]
         section("main", "[bold]★ MAIN[/]", [g for g in MAIN_GROUPS if g in public], "bold black on #ffb454")
@@ -235,10 +285,10 @@ class OperationsProvider:
         if prints:
             leaves = [
                 Node(id=pe.path, label=f"[#4fd1c5]{pe.path}[/] [dim]{'bulk' if pe.bulk else 'one'}[/]"
-                     + ("" if pe.sendable else " [dim](not mapped)[/]"), data=("print", pe))
+                     + ("" if pe.sendable else " [dim](not mapped)[/]"), data=("print", pe), markup=True)
                 for pe in prints
             ]
-            out.append(Node(id="print", label="[bold #4fd1c5]⎙ PRINT[/] [dim]· where printing lives[/]",
+            out.append(Node(id="print", markup=True, label="[bold #4fd1c5]⎙ PRINT[/] [dim]· where printing lives[/]",
                             children=leaves, expanded=bool(needle)))
         ref = [g for g, ops in by_group.items() if ops[0].source in ("wms", "mes", "report-service")]
         section("reference", "[bold dim]▫ REFERENCE[/] [dim]· never sent[/]", ref, "dim")

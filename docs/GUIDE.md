@@ -90,9 +90,13 @@ class Watchlist:
 Cin7Tui(providers=[Watchlist(), OperationsProvider()]).run()
 ```
 
-A `Node` has `id`, `label` (Rich markup: escape text that is not yours), `icon`, `heat` (0-100, drawn as a bar before the
-row), `children` (a branch if any), `expanded`, `data` and `style`. `nodes` runs on every filter keystroke and theme
-change, so keep it quick; if it raises, that section shows one error row and the rest keeps working. An optional
+A `Node` has `id`, `label`, `icon`, `heat` (0-100, drawn as a bar before the row), `children` (a branch if any),
+`expanded`, `data`, `style` and `markup`. The provider's `title`, a node's `label` and its `icon` are plain text:
+brackets show as typed and are never read as markup. `style` (a Rich style such as `"bold cyan"`) colours the whole
+label; one that does not parse is dropped. `markup=True` reads the label as Rich markup instead (the built-in sections
+use it), falling back to plain text if it does not parse. `nodes` runs on every filter keystroke and theme
+change, so keep it quick; if it raises, or one of its rows cannot be drawn, that section shows one error row and the
+rest keeps working. An optional
 `attach(app)` is called once before the first `nodes` call. Leaves whose `data` is a `spec.Operation` (or the
 `("quick", key)`, `("print", endpoint)` and `("group", name)` tuples) are run by the TUI itself.
 

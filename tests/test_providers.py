@@ -224,3 +224,98 @@ async def test_provider_sections_survive_ctrl_t(tmp_path):
         assert app.theme == "cin7-dark" and len(fake.calls) > n, "re-rendered for the new theme"
         labels = [str(x.label) for x in _section(app.query_one("#ops", Tree), "Hot items").children]
         assert labels == ["█ ● Alpha", "▁ ● Beta"]
+
+
+# --- provider text is plain text: stray brackets and bad styles never crash ----------
+
+
+class ListProvider:
+    """A provider that returns whatever nodes it is given, under any title."""
+
+    def __init__(self, title: str, nodes: list[Node]):
+        self.title = title
+        self._nodes = nodes
+        self.ran: list[Node] = []
+
+    def nodes(self, filter_text: str) -> list[Node]:
+        return list(self._nodes)
+
+    def run(self, app, node: Node) -> None:
+        self.ran.append(node)
+
+
+async def _type_filter(app, pilot, text: str) -> None:
+    app.query_one("#filter", Input).focus()
+    for ch in text:
+        await pilot.press(ch)
+    await pilot.pause()
+    app.export_screenshot()  # render every row now: a bad style would raise here
+
+
+async def test_label_with_markup_characters_is_plain_text(tmp_path):
+    odd = ListProvider("Odd", [Node(id="x", label="Close [/] bracket"), Node(id="y", label="[bold]not bold[/]")])
+    app = Cin7Tui(export_dir=tmp_path, providers=[odd, FakeProvider()])
+    async with app.run_test(size=(140, 45)) as pilot:
+        await pilot.pause()
+        app.export_screenshot()
+        tree = app.query_one("#ops", Tree)
+        labels = [str(n.label) for n in _section(tree, "Odd").children]
+        assert labels == ["Close [/] bracket", "[bold]not bold[/]"]
+        assert "Hot items" in _heads(tree)[1], "later providers still render"
+        await _type_filter(app, pilot, "cl")
+        assert app.is_running
+
+
+async def test_title_with_markup_characters_is_plain_text(tmp_path):
+    odd = ListProvider("Title [/x]", [Node(id="x", label="row")])
+    app = Cin7Tui(export_dir=tmp_path, providers=[odd, FakeProvider()])
+    async with app.run_test(size=(140, 45)) as pilot:
+        await pilot.pause()
+        app.export_screenshot()
+        tree = app.query_one("#ops", Tree)
+        assert _heads(tree)[0] == "Title [/x]"
+        assert [str(n.label) for n in tree.root.children[0].children] == ["row"]
+        assert "Hot items" in _heads(tree)[1]
+        await _type_filter(app, pilot, "ro")
+        assert app.is_running
+
+
+async def test_bad_style_falls_back_to_plain(tmp_path):
+    odd = ListProvider("Odd", [Node(id="x", label="styled", style="not-a-colour [", heat=50, icon="●"),
+                               Node(id="y", label="ok", style="bold")])
+    app = Cin7Tui(export_dir=tmp_path, providers=[odd, FakeProvider()])
+    async with app.run_test(size=(140, 45)) as pilot:
+        await pilot.pause()
+        app.export_screenshot()
+        tree = app.query_one("#ops", Tree)
+        rows = _section(tree, "Odd").children
+        assert [str(n.label) for n in rows] == ["▅ ● styled", "ok"]
+        assert any(span.style for span in rows[1].label.spans), "a good style is still applied"
+        await _type_filter(app, pilot, "st")
+        assert app.is_running
+
+
+async def test_node_that_cannot_be_drawn_is_an_error_leaf(tmp_path):
+    bad = ListProvider("Bad", [Node(id="ok", label="fine"), Node(id="x", label=None)])  # type: ignore[arg-type]
+    app = Cin7Tui(export_dir=tmp_path, providers=[bad, FakeProvider()])
+    async with app.run_test(size=(140, 45)) as pilot:
+        await pilot.pause()
+        app.export_screenshot()
+        tree = app.query_one("#ops", Tree)
+        section = _section(tree, "Bad")
+        assert len(section.children) == 1 and "error" in str(section.children[0].label)
+        assert "Hot items" in _heads(tree)[1], "later providers still render"
+        await _type_filter(app, pilot, "f")
+        assert app.is_running
+
+
+def test_render_label_is_plain_and_survives_a_bad_style():
+    from rich.text import Text
+
+    from cin7_cli.providers import render_label
+
+    assert Text.from_markup(render_label(Node(id="a", label="a [/] b", icon="[x]"))).plain == "[x] a [/] b"
+    shown = Text.from_markup(render_label(Node(id="a", label="txt", style="bogus colour [", heat=100)))
+    assert shown.plain == "█ txt" and not shown.spans
+    good = Text.from_markup(render_label(Node(id="a", label="txt", style="bold cyan")))
+    assert good.plain == "txt" and good.spans

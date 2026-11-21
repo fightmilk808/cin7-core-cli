@@ -745,7 +745,7 @@ class Cin7Tui(App):
 
         def add(parent, nodes: list[providers_mod.Node], provider) -> None:
             for n in nodes:
-                label = tint(providers_mod.render_label(n))
+                label = providers_mod.render_label(n, tint)
                 if n.children:
                     add(parent.add(label, data=n.data, expand=n.expanded), n.children, provider)
                 else:
@@ -756,18 +756,24 @@ class Cin7Tui(App):
         quick_section("[bold]↺ RECENT[/]", [n for n in self.recent if n not in self.pins][:MAX_RECENT])
         for provider in self.providers:
             title = str(getattr(provider, "title", "") or type(provider).__name__)
-            try:
+            heading = f"[bold]{rich_escape(title)}[/]"  # a provider's title is plain text
+            head = None
+            known = set(self._provider_leaves)
+            try:  # one broken section (its nodes, a label, a style) must not take the sidebar down
                 nodes = list(provider.nodes(text.strip()))
-            except Exception as e:  # one broken section must not take the sidebar down
-                head = tree.root.add(tint(f"[bold]{title}[/]"), data=None, expand=True)
+                if not nodes:
+                    continue
+                head = tree.root.add(heading, data=None, expand=bool(getattr(provider, "expanded", True)))
+                add(head, nodes, provider)
+            except Exception as e:
+                if head is not None:  # drop the half-built section
+                    for key in set(self._provider_leaves) - known:
+                        del self._provider_leaves[key]
+                    head.remove()
+                head = tree.root.add(heading, data=None, expand=True)
                 # ("error",) is the TUI's own data: enter on it does nothing, and it is never handed to `run`
                 head.add_leaf(f"[red]error: {rich_escape(str(e) or type(e).__name__)}[/]", data=("error",))
                 self.log_line(f"[red]sidebar section {rich_escape(title)}: {rich_escape(repr(e))}[/]")
-                continue
-            if not nodes:
-                continue
-            head = tree.root.add(tint(f"[bold]{title}[/]"), data=None, expand=bool(getattr(provider, "expanded", True)))
-            add(head, nodes, provider)
 
     # --- events -------------------------------------------------------------
 
